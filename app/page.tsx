@@ -81,10 +81,19 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(payload?.error || "请求失败，请稍后重试。");
+        const rawText = await response.text();
+        let message = "请求失败，请稍后重试。";
+
+        try {
+          const payload = JSON.parse(rawText) as { error?: string } | null;
+          if (payload?.error) {
+            message = payload.error;
+          }
+        } catch {
+          message = `请求失败 (HTTP ${response.status})`;
+        }
+
+        throw new Error(message);
       }
 
       const payload = (await response.json()) as ApiResponse;
