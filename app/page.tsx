@@ -1,11 +1,12 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, BookOpen, QrCode, Settings, Sigma, Workflow } from "lucide-react";
+import { ArrowLeftRight, Code, Image, QrCode, Settings, Sigma, Workflow } from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
 import { BasePanel } from "../components/base-panel";
-import { PaperPanel, type PaperData } from "../components/paper-panel";
+import { CodePanel, type CodeData } from "../components/code-panel";
+import { LatexPanel } from "../components/latex-panel";
 import { QrPanel } from "../components/qr-panel";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -15,16 +16,28 @@ import { OutputPanel } from "../components/output-panel";
 import { convertBase, type BaseConversion } from "../lib/base-convert";
 import type { QrCornerDotType, QrCornerSquareType, QrDotsType } from "../components/qr-renderer";
 
-type AiMode = "math" | "diagram" | "paper";
+type AiMode = "math" | "diagram" | "code" | "latex";
 
 type Mode = AiMode | "base" | "qr";
 
 const STORAGE_KEY = "siliconflow_api_key";
+const API_BASE_URL = "https://api.siliconflow.cn/v1";
 
 const MODEL_OPTIONS = [
   { value: "deepseek-ai/DeepSeek-V3.2", label: "DeepSeek V3.2" },
   { value: "deepseek-ai/DeepSeek-V3", label: "DeepSeek V3" },
   { value: "Pro/zai-org/GLM-4.7", label: "GLM-4.7 Pro" },
+] as const;
+
+const VISION_MODEL_OPTIONS = [
+  { value: "Qwen/Qwen-Image", label: "Qwen-Image" },
+  { value: "Qwen/Qwen-Image-Edit-2509", label: "Qwen-Image-Edit-2509" },
+] as const;
+
+const CODE_STYLE_OPTIONS = [
+  { value: "structured", label: "结构化" },
+  { value: "concise", label: "精简" },
+  { value: "detailed", label: "详细" },
 ] as const;
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
@@ -45,18 +58,16 @@ const SYSTEM_PROMPTS: Record<AiMode, string> = {
   diagram:
     "你是一名系统架构师。请将用户的描述转化为 Mermaid.js 的 flowchart 代码。仅返回代码块内容，" +
     "以 graph TD 或适当的类型开头。不要包含 markdown 格式标记。",
-  paper:
-    "你是一名科研助理。请对用户提供的论文摘要或段落进行速读解析，仅返回一个 JSON 对象，包含以下字段：" +
-    "contributions: 字符串数组，列出主要贡献点；" +
-    "method: 字符串，概括核心方法；" +
-    "experiments: 字符串，概括实验设置/数据集/指标；" +
-    "limitations: 字符串，概括局限性或可能风险。",
+  code:
+    "你是一名资深软件工程师。请解释用户提供的代码，并生成清晰的伪代码。" +
+    "你必须仅返回一个 JSON 对象，包含以下字段：" +
+    "explanation: 字符串，说明代码整体逻辑与关键步骤；" +
+    "pseudocode: 字符串，结构化伪代码，注意可读性与层次。",
+  latex:
+    "你是一名公式识别专家。请识别用户上传的公式图片，" +
+    "仅返回纯 LaTeX 字符串，不要包含 markdown、代码块或额外解释。",
 };
 
-const PDF_WORKER_URL =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js";
-
-const MAX_PAPER_CHARS = 12000;
 
 type MathData = {
   explanation: string;
@@ -94,37 +105,27 @@ function normalizeApiKey(value: string) {
   return value.trim().replace(/^Bearer\s+/i, "");
 }
 
-async function extractPdfText(file: File) {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
-  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
+function normalizeLatex(value: string) {
+  let text = value.trim();
+  if (text.startsWith("$$") && text.endsWith("$$")) {
+    text = text.slice(2, -2);
+  } else if (text.startsWith("$") && text.endsWith("$")) {
+    text = text.slice(1, -1);
   }
-
-  const buffer = await file.arrayBuffer();
-  const pdf = await pdfjs.getDocument({ data: buffer }).promise;
-  let text = "";
-
-  for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
-    const page = await pdf.getPage(pageIndex);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item) => item.str).join(" ");
-    text += `${pageText}\n`;
-  }
-
   return text.trim();
 }
 
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
-  const [model, setModel] = useState<ModelId>("deepseek-ai/DeepSeek-V3.2");
+  const [model, setModel] = useState<ModelId>(MODEL_OPTIONS[0].value);
+  const [visionModel, setVisionModel] = useState(VISION_MODEL_OPTIONS[0].value);
   const [input, setInput] = useState("");
   const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
-  const [paperData, setPaperData] = useState<PaperData | null>(null);
-  const [paperParsing, setPaperParsing] = useState(false);
-  const [paperFileName, setPaperFileName] = useState<string | null>(null);
+  const [codeResult, setCodeResult] = useState<CodeData | null>(null);
   const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
+  const [baseError, setBaseError] = useState<string | null>(null);
   const [baseInputs, setBaseInputs] = useState<Record<number, string>>({
     2: "",
     8: "",
@@ -136,6 +137,9 @@ export default function HomePage() {
   const [baseSource, setBaseSource] = useState<{ base: number; value: string } | null>(
     null
   );
+  const [codeStyle, setCodeStyle] = useState(CODE_STYLE_OPTIONS[0].value);
+  const [latexImage, setLatexImage] = useState<string | null>(null);
+  const [latexResult, setLatexResult] = useState("");
   const [qrSize, setQrSize] = useState(260);
   const [qrMargin, setQrMargin] = useState(8);
   const [qrDotsType, setQrDotsType] = useState<QrDotsType>("rounded");
@@ -160,51 +164,68 @@ export default function HomePage() {
     if (stored) setApiKey(stored);
   }, []);
 
+  useEffect(() => {
+    if (!baseSource) return;
+    applyBaseConversion(baseSource.value, baseSource.base);
+  }, [customBase]);
+
   const placeholder = useMemo(() => {
     if (mode === "math") {
-      return "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^{m} y^{(i)} \\log \\hat{y}^{(i)}";
+      return "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^m y^{(i)} \\log \\hat{y}^{(i)}";
     }
     if (mode === "diagram") {
-      return "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401。";
+      return "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401";
     }
-    if (mode === "paper") {
-      return "例如：本文提出一种...，在多个数据集上达到 SOTA。";
+    if (mode === "code") {
+      return "粘贴需要解释的代码片段，例如 Python/JS/Java 逻辑。";
     }
-    return "例如：FFEE 或 0b101010";
+    return "";
   }, [mode]);
 
   const actionLabel = useMemo(() => {
-    if (loading) return "生成中...";
     if (mode === "math") return "解码";
     if (mode === "diagram") return "生成图表";
-    if (mode === "paper") return "速读";
+    if (mode === "code") return "解析代码";
+    if (mode === "latex") return "识别公式";
     return "生成";
-  }, [loading, mode]);
+  }, [mode]);
+
+  const helperText = useMemo(() => {
+    if (mode === "math") {
+      return "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。";
+    }
+    if (mode === "diagram") {
+      return "支持条件、分支与循环的流程描述。";
+    }
+    if (mode === "code") {
+      return "适合短代码段，建议附上语言与上下文。";
+    }
+    if (mode === "latex") {
+      return "建议上传清晰的公式截图，避免背景噪点。";
+    }
+    if (mode === "base") {
+      return "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。";
+    }
+    return "支持文字与链接，自动实时生成二维码。";
+  }, [mode]);
 
   const handleModeChange = (value: string) => {
-    if (value !== "math" && value !== "diagram" && value !== "paper" && value !== "base" && value !== "qr") {
-      return;
-    }
-    setMode(value);
-    setInput("");
-    setQrInput("");
-    setPaperFileName(null);
-    setPaperParsing(false);
-    setLastInput("");
-    setData(null);
-    setPaperData(null);
-    setBaseResult(null);
+    const nextMode = value as Mode;
+    setMode(nextMode);
     setError(null);
+    setBaseError(null);
     setLoading(false);
+    setData(null);
+    setCodeResult(null);
+    setLatexResult("");
   };
 
   const applyBaseConversion = (value: string, fromBase: number) => {
-    const trimmed = value.trim();
     setBaseSource({ base: fromBase, value });
 
-    if (!trimmed) {
-      setError(null);
+    if (!value.trim()) {
       setBaseResult(null);
+      setBaseError(null);
       if (fromBase === customBase) {
         setCustomValue(value);
       } else {
@@ -213,10 +234,12 @@ export default function HomePage() {
       return;
     }
 
-    const { result, error: baseError } = convertBase(trimmed, fromBase, customBase);
-    if (baseError) {
-      setError(baseError);
+    const mainTarget = fromBase === customBase ? 10 : customBase;
+    const mainConversion = convertBase(value, fromBase, mainTarget);
+
+    if (!mainConversion.result || mainConversion.error) {
       setBaseResult(null);
+      setBaseError(mainConversion.error || "转换失败，请检查输入。");
       if (fromBase === customBase) {
         setCustomValue(value);
       } else {
@@ -225,118 +248,129 @@ export default function HomePage() {
       return;
     }
 
-    setError(null);
-    setBaseResult(result || null);
+    const outputs = new Map<number, string>();
+    mainConversion.result.all.forEach((item) => outputs.set(item.base, item.value));
 
-    setBaseInputs((prev) => {
-      const next = { ...prev };
-      for (const field of BASE_FIELDS) {
-        const item = result?.all.find((entry) => entry.base === field.base);
-        if (item) {
-          next[field.base] = field.base === fromBase ? value : item.value;
-        }
+    if (fromBase === customBase && !outputs.has(customBase)) {
+      const customConversion = convertBase(value, fromBase, customBase);
+      if (customConversion.result) {
+        outputs.set(customBase, customConversion.result.output);
       }
-      return next;
+    }
+
+    setBaseInputs({
+      2: outputs.get(2) ?? "",
+      8: outputs.get(8) ?? "",
+      10: outputs.get(10) ?? "",
+      16: outputs.get(16) ?? "",
     });
+    setCustomValue(outputs.get(customBase) ?? "");
 
-    const customItem = result?.all.find((entry) => entry.base === customBase);
-    if (customItem) {
-      setCustomValue(fromBase === customBase ? value : customItem.value);
-    }
-    setLastInput(trimmed);
-  };
+    const allBases = [2, 8, 10, 16, customBase].filter(
+      (base, index, arr) => arr.indexOf(base) === index
+    );
 
-  useEffect(() => {
-    if (!baseSource) return;
-    if (baseSource.value.trim()) {
-      applyBaseConversion(baseSource.value, baseSource.base);
-    }
-  }, [customBase]);
-
-  const handlePdfChange = async (file: File) => {
-    setPaperParsing(true);
-    setPaperFileName(file.name);
-    setError(null);
-
-    try {
-      const rawText = await extractPdfText(file);
-      const cleaned = rawText.replace(/\s+/g, " ").trim();
-      const limited = cleaned.slice(0, MAX_PAPER_CHARS);
-      setInput(limited);
-      setPaperData(null);
-      setLastInput("");
-      if (!limited) {
-        setError("PDF 解析为空，请检查文件内容。");
-      }
-    } catch {
-      setError("PDF 解析失败，请确认文件未加密且格式正确。");
-    } finally {
-      setPaperParsing(false);
-    }
+    setBaseResult({
+      ...mainConversion.result,
+      output: outputs.get(mainTarget) ?? mainConversion.result.output,
+      all: allBases.map((base) => ({
+        base,
+        label: `${base} 进制`,
+        value: outputs.get(base) ?? "",
+      })),
+    });
+    setBaseError(null);
   };
 
   const handleSubmit = async () => {
-    const trimmed = input.trim();
-    if (!trimmed) {
-      setError(mode === "paper" ? "请先粘贴摘要或上传 PDF。" : "请输入内容后再生成。");
-      return;
-    }
+    if (loading) return;
+    setError(null);
 
-    if (mode === "base" || mode === "qr") {
+    const trimmed = input.trim();
+
+    if (mode === "latex") {
+      if (!latexImage) {
+        setError("请先上传公式截图。");
+        return;
+      }
+    } else if (!trimmed) {
+      setError("请先输入内容。");
       return;
     }
 
     const normalizedKey = normalizeApiKey(apiKey);
     if (!normalizedKey) {
-      setError("请先在设置中填写 SiliconFlow API Key。");
-      setShowSettings(true);
+      setError("请先在设置中填写 API Key。");
       return;
     }
 
     setLoading(true);
-    setError(null);
     setData(null);
-    setPaperData(null);
+    setCodeResult(null);
+    if (mode === "latex") setLatexResult("");
 
     try {
-      const response = await fetch("https://api.siliconflow.cn/v1/chat/completions", {
+      const systemPrompt =
+        mode === "code"
+          ? `${SYSTEM_PROMPTS.code}\n额外要求：伪代码风格为${
+              CODE_STYLE_OPTIONS.find((option) => option.value === codeStyle)?.label ||
+              codeStyle
+            }。`
+          : SYSTEM_PROMPTS[mode];
+
+      const requestModel =
+        mode === "latex" ? (visionModel || VISION_MODEL_OPTIONS[0].value) : model;
+
+      const messages =
+        mode === "latex"
+          ? [
+              { role: "system", content: systemPrompt },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "请识别图片中的公式并输出 LaTeX。" },
+                  { type: "image_url", image_url: { url: latexImage } },
+                ],
+              },
+            ]
+          : [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: trimmed },
+            ];
+
+      const response = await fetch(`${API_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${normalizedKey}`,
         },
         body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPTS[mode as AiMode] },
-            { role: "user", content: trimmed },
-          ],
+          model: requestModel,
+          messages,
           temperature: 0.2,
         }),
       });
 
       if (!response.ok) {
-        const rawText = await response.text();
-        let message = "请求失败，请稍后重试。";
-
-        try {
-          const payload = JSON.parse(rawText) as { error?: string } | null;
-          if (payload?.error) {
-            message = payload.error;
-          }
-        } catch {
-          message = `请求失败 (HTTP ${response.status})`;
+        const errorPayload = await response.json().catch(() => null);
+        const detail =
+          errorPayload?.error?.message ||
+          errorPayload?.error ||
+          errorPayload?.message ||
+          "请求失败，请检查网络或 API Key。";
+        if (response.status === 401) {
+          throw new Error("API Key 无效或未授权，请检查后重试。");
         }
-
-        throw new Error(message);
+        throw new Error(detail);
       }
 
       const payload = (await response.json()) as {
         choices?: { message?: { content?: string } }[];
       };
+
       const rawContent = payload?.choices?.[0]?.message?.content;
       if (!rawContent) {
-        throw new Error("模型没有返回内容。");
+        throw new Error("模型未返回内容。");
       }
 
       const content = stripCodeFences(rawContent);
@@ -353,26 +387,26 @@ export default function HomePage() {
           symbols: Array.isArray(parsedData.symbols) ? parsedData.symbols : [],
           code: parsedData.code || "",
         });
-      } else if (mode === "paper") {
+      } else if (mode === "code") {
         const parsed = parseJsonObject(content);
         if (!parsed || typeof parsed !== "object") {
           throw new Error("模型未返回有效 JSON。");
         }
 
-        const parsedData = parsed as Partial<PaperData>;
-        setPaperData({
-          contributions: Array.isArray(parsedData.contributions)
-            ? parsedData.contributions.filter((item) => typeof item === "string")
-            : [],
-          method: parsedData.method || "",
-          experiments: parsedData.experiments || "",
-          limitations: parsedData.limitations || "",
+        const parsedData = parsed as Partial<CodeData>;
+        setCodeResult({
+          explanation: parsedData.explanation || "",
+          pseudocode: parsedData.pseudocode || "",
         });
+      } else if (mode === "latex") {
+        setLatexResult(normalizeLatex(content));
       } else {
         setData({ mermaid: content });
       }
 
-      setLastInput(trimmed);
+      if (mode !== "latex") {
+        setLastInput(trimmed);
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "请求失败，可能是网络或 CORS 限制。";
@@ -406,7 +440,7 @@ export default function HomePage() {
         </div>
         <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Shen's tools</h1>
         <p className="max-w-2xl text-sm text-[color:var(--muted)] sm:text-base">
-          集成公式解码、架构绘图、论文速读与进制转换的轻量工具集，帮助你更快完成学习与开发任务。
+          集成公式解码、架构绘图、代码解析、图转 LaTeX、进制转换与二维码生成的轻量工具集。
         </p>
       </header>
 
@@ -415,23 +449,27 @@ export default function HomePage() {
           <TabsList className="w-full justify-start gap-2 sm:w-auto">
             <TabsTrigger value="math">
               <Sigma className="h-4 w-4" />
-              🧩 公式翻译官
+              公式翻译官
             </TabsTrigger>
             <TabsTrigger value="diagram">
               <Workflow className="h-4 w-4" />
-              📊 架构图生成器
+              架构图生成器
             </TabsTrigger>
-            <TabsTrigger value="paper">
-              <BookOpen className="h-4 w-4" />
-              📚 论文速读器
+            <TabsTrigger value="code">
+              <Code className="h-4 w-4" />
+              代码解析
+            </TabsTrigger>
+            <TabsTrigger value="latex">
+              <Image className="h-4 w-4" />
+              图转 LaTeX
             </TabsTrigger>
             <TabsTrigger value="base">
               <ArrowLeftRight className="h-4 w-4" />
-              🔢 进制转换
+              进制转换
             </TabsTrigger>
             <TabsTrigger value="qr">
               <QrCode className="h-4 w-4" />
-              📷 二维码生成器
+              二维码生成器
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -445,8 +483,10 @@ export default function HomePage() {
                 ? "输入公式"
                 : mode === "diagram"
                 ? "输入描述"
-                : mode === "paper"
-                ? "输入摘要"
+                : mode === "code"
+                ? "输入代码"
+                : mode === "latex"
+                ? "上传公式"
                 : mode === "base"
                 ? "输入数值"
                 : "输入内容"}
@@ -456,126 +496,68 @@ export default function HomePage() {
                 ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
                 : mode === "diagram"
                 ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
-                : mode === "paper"
-                ? "粘贴摘要或段落，我们会提炼贡献点与实验信息。"
+                : mode === "code"
+                ? "粘贴代码片段，我们会给出解释与伪代码。"
+                : mode === "latex"
+                ? "上传公式截图，识别并输出 LaTeX。"
                 : mode === "base"
                 ? "设置输入/输出进制，完成任意进制之间的转换。"
                 : "输入任意文字或链接，实时生成可自定义的二维码。"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mode !== "base" && mode !== "qr" ? (
-              <>
-                <div className="space-y-2">
-                  <label
-                    htmlFor="model"
-                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-                  >
-                    模型选择
-                  </label>
-                  <select
-                    id="model"
-                    value={model}
-                    onChange={(event) => setModel(event.target.value as ModelId)}
-                    disabled={loading}
-                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                  >
-                    {MODEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.value})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {mode === "paper" ? (
-                  <div className="space-y-2">
+            {mode === "base" ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {BASE_FIELDS.map((field) => (
+                  <div key={`base-input-${field.base}`} className="space-y-2">
                     <label
-                      htmlFor="paper-file"
+                      htmlFor={`base-${field.base}`}
                       className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
                     >
-                      上传 PDF（可选）
+                      {field.label} ({field.base} 进制)
                     </label>
                     <input
-                      id="paper-file"
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        handlePdfChange(file);
-                        event.currentTarget.value = "";
-                      }}
-                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] file:mr-4 file:rounded-full file:border-0 file:bg-[color:var(--accent)] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                      id={`base-${field.base}`}
+                      type="text"
+                      value={baseInputs[field.base]}
+                      onChange={(event) =>
+                        applyBaseConversion(event.target.value, field.base)
+                      }
+                      placeholder={field.helper}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                     />
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-[color:var(--muted)]">
-                      {paperFileName ? <span>已选择：{paperFileName}</span> : null}
-                      {paperParsing ? <span>PDF 解析中...</span> : null}
-                      {input.length ? (
-                        <span>当前输入约 {Math.round(input.length / 100) / 10}k 字</span>
-                      ) : null}
-                    </div>
                   </div>
-                ) : null}
-                <Textarea
-                  placeholder={placeholder}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                />
-              </>
-            ) : mode === "base" ? (
-              <>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {BASE_FIELDS.map((field) => (
-                    <div key={`base-input-${field.base}`} className="space-y-2">
-                      <label
-                        htmlFor={`base-${field.base}`}
-                        className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-                      >
-                        {field.label} ({field.base} 进制)
-                      </label>
-                      <input
-                        id={`base-${field.base}`}
-                        type="text"
-                        value={baseInputs[field.base]}
-                        onChange={(event) =>
-                          applyBaseConversion(event.target.value, field.base)
-                        }
-                        placeholder={field.helper}
-                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                      />
-                    </div>
-                  ))}
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="custom-base"
-                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-                    >
-                      自定义进制
-                    </label>
-                    <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
-                      <input
-                        id="custom-base"
-                        type="number"
-                        min={2}
-                        max={36}
-                        value={customBase}
-                        onChange={(event) => setCustomBase(Number(event.target.value))}
-                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                      />
-                      <input
-                        type="text"
-                        value={customValue}
-                        onChange={(event) =>
-                          applyBaseConversion(event.target.value, customBase)
-                        }
-                        placeholder={`示例：基于 ${customBase} 进制输入`}
-                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                      />
-                    </div>
+                ))}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="custom-base"
+                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                  >
+                    自定义进制
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
+                    <input
+                      id="custom-base"
+                      type="number"
+                      min={2}
+                      max={36}
+                      value={customBase}
+                      onChange={(event) => setCustomBase(Number(event.target.value))}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
+                    <input
+                      type="text"
+                      value={customValue}
+                      onChange={(event) =>
+                        applyBaseConversion(event.target.value, customBase)
+                      }
+                      placeholder={`示例：基于 ${customBase} 进制输入`}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
                   </div>
                 </div>
-              </>
-            ) : (
+              </div>
+            ) : mode === "qr" ? (
               <>
                 <Textarea
                   placeholder="例如：https://example.com 或 任何文字"
@@ -813,19 +795,120 @@ export default function HomePage() {
                   </label>
                 </div>
               </>
+            ) : mode === "latex" ? (
+              <>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="vision-model"
+                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                  >
+                    视觉模型
+                  </label>
+                  <select
+                    id="vision-model"
+                    value={visionModel}
+                    onChange={(event) => setVisionModel(event.target.value)}
+                    disabled={loading}
+                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                  >
+                    {VISION_MODEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.value})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="latex-image"
+                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                  >
+                    上传公式截图
+                  </label>
+                  <input
+                    id="latex-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setLatexImage(reader.result as string);
+                        setLatexResult("");
+                      };
+                      reader.readAsDataURL(file);
+                      event.currentTarget.value = "";
+                    }}
+                    className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] file:mr-4 file:rounded-full file:border-0 file:bg-[color:var(--accent)] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                  />
+                </div>
+                {latexImage ? (
+                  <div className="glass flex items-center justify-center rounded-2xl p-4">
+                    <img
+                      src={latexImage}
+                      alt="公式截图预览"
+                      className="max-h-48 w-auto rounded-xl object-contain"
+                    />
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="model"
+                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                  >
+                    模型选择
+                  </label>
+                  <select
+                    id="model"
+                    value={model}
+                    onChange={(event) => setModel(event.target.value as ModelId)}
+                    disabled={loading}
+                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                  >
+                    {MODEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.value})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {mode === "code" ? (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="code-style"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      伪代码风格
+                    </label>
+                    <select
+                      id="code-style"
+                      value={codeStyle}
+                      onChange={(event) => setCodeStyle(event.target.value)}
+                      disabled={loading}
+                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    >
+                      {CODE_STYLE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                <Textarea
+                  placeholder={placeholder}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  className={mode === "code" ? "font-mono" : undefined}
+                />
+              </>
             )}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-xs text-[color:var(--muted)]">
-                {mode === "math"
-                  ? "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。"
-                  : mode === "diagram"
-                  ? "支持条件、分支与循环的流程描述。"
-                  : mode === "paper"
-                  ? "支持中英文摘要或段落，自动提炼结构化信息。"
-                  : mode === "base"
-                  ? "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。"
-                  : "支持文字与链接，自动实时生成二维码。"}
-              </span>
+              <span className="text-xs text-[color:var(--muted)]">{helperText}</span>
               {mode === "base" || mode === "qr" ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold text-[color:var(--muted)]">
                   {mode === "base" ? "实时转换已开启" : "实时生成已开启"}
@@ -840,9 +923,7 @@ export default function HomePage() {
         </Card>
 
         {mode === "base" ? (
-          <BasePanel result={baseResult} error={error} />
-        ) : mode === "paper" ? (
-          <PaperPanel data={paperData} error={error} loading={loading || paperParsing} />
+          <BasePanel result={baseResult} error={baseError} />
         ) : mode === "qr" ? (
           <QrPanel
             data={qrInput}
@@ -861,6 +942,10 @@ export default function HomePage() {
               hideBackgroundDots: qrHideBackgroundDots,
             }}
           />
+        ) : mode === "code" ? (
+          <CodePanel data={codeResult} error={error} loading={loading} />
+        ) : mode === "latex" ? (
+          <LatexPanel image={latexImage} latex={latexResult} error={error} loading={loading} />
         ) : (
           <OutputPanel
             mode={mode === "diagram" ? "diagram" : "math"}
