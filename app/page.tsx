@@ -29,11 +29,6 @@ const MODEL_OPTIONS = [
   { value: "Pro/zai-org/GLM-4.7", label: "GLM-4.7 Pro" },
 ] as const;
 
-const VISION_MODEL_OPTIONS = [
-  { value: "Qwen/Qwen-Image", label: "Qwen-Image" },
-  { value: "Qwen/Qwen-Image-Edit-2509", label: "Qwen-Image-Edit-2509" },
-] as const;
-
 const CODE_STYLE_OPTIONS = [
   { value: "structured", label: "结构化" },
   { value: "concise", label: "精简" },
@@ -41,7 +36,6 @@ const CODE_STYLE_OPTIONS = [
 ] as const;
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
-type VisionModelId = (typeof VISION_MODEL_OPTIONS)[number]["value"];
 type CodeStyleId = (typeof CODE_STYLE_OPTIONS)[number]["value"];
 
 const BASE_FIELDS = [
@@ -120,9 +114,7 @@ function normalizeLatex(value: string) {
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>(MODEL_OPTIONS[0].value);
-  const [visionModel, setVisionModel] = useState<VisionModelId>(
-    VISION_MODEL_OPTIONS[0].value
-  );
+  const [visionModel, setVisionModel] = useState("");
   const [input, setInput] = useState("");
   const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
@@ -301,6 +293,10 @@ export default function HomePage() {
         setError("请先上传公式截图。");
         return;
       }
+      if (!visionModel.trim()) {
+        setError("请填写视觉模型 ID。");
+        return;
+      }
     } else if (!trimmed) {
       setError("请先输入内容。");
       return;
@@ -326,8 +322,7 @@ export default function HomePage() {
             }。`
           : SYSTEM_PROMPTS[mode];
 
-      const requestModel =
-        mode === "latex" ? (visionModel || VISION_MODEL_OPTIONS[0].value) : model;
+      const requestModel = mode === "latex" ? visionModel.trim() : model;
 
       const messages =
         mode === "latex"
@@ -812,21 +807,15 @@ export default function HomePage() {
                   >
                     视觉模型
                   </label>
-                  <select
+                  <input
                     id="vision-model"
+                    type="text"
                     value={visionModel}
-                    onChange={(event) =>
-                      setVisionModel(event.target.value as VisionModelId)
-                    }
+                    onChange={(event) => setVisionModel(event.target.value)}
                     disabled={loading}
-                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                  >
-                    {VISION_MODEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.value})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="例如：Qwen/Qwen-Image"
+                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label

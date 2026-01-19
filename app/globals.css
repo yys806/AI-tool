@@ -6,8 +6,8 @@
   --bg: #f6f1ea;
   --ink: #151515;
   --muted: #5c5c5c;
-  --card: rgba(255, 255, 255, 0.78);
-  --border: rgba(21, 21, 21, 0.12);
+  --card: rgba(255, 255, 255, 0.6);
+  --border: rgba(21, 21, 21, 0.16);
   --accent: #1d7a71;
   --accent-2: #e39a3b;
   --accent-3: #2f5d8a;
@@ -71,5 +71,6 @@ h3 {
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
