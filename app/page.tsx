@@ -33,8 +33,13 @@ type Mode = AiMode | "base" | "qr" | "prompt" | "debug";
 
 const STORAGE_KEY = "siliconflow_api_key";
 const API_BASE_URL = "https://api.siliconflow.cn/v1";
-const PROMPT_SYSTEM_PROMPT =
-  "你是一名 Prompt Engineering 专家。将用户的简单指令转换为结构清晰的 Markdown 格式 Prompt。必须包含：# Role, # Context, # Skills, # Constraints, # Workflow。";
+const PROMPT_SYSTEM_PROMPT = `你是一名 Prompt Engineering 专家。你的唯一任务是把用户输入扩写成结构化的 Markdown Prompt。
+强约束：
+- 严禁输出任何可执行代码或代码示例，只能写 Prompt 文本。
+- 必须按顺序包含以下一级标题，并用中文要点补充：# Role, # Context, # Skills, # Constraints, # Workflow。
+- Workflow 需使用有序列表，其余部分可用简短句子或无序列表。
+- 如果用户要求代码，也只描述“让模型写代码的指令”，不要真的写代码。
+- 只输出纯 Markdown 内容，不要包裹代码块。`;
 const DEBUG_SYSTEM_PROMPT =
   "你是一名代码调试专家。分析提供的报错信息。返回一个 JSON 对象，包含：analysis: 用通俗语言解释错误原因；fix_code: 修复后的代码片段。";
 
@@ -159,6 +164,39 @@ function deriveTitleFromMarkdown(markdown: string) {
     return heading.replace(/^#+\s*/, "").trim() || "结构化 Prompt";
   }
   return "结构化 Prompt";
+}
+
+function ensureStructuredPrompt(content: string, userInput: string) {
+  const text = stripCodeFences(content);
+  const required = ["role", "context", "skills", "constraints", "workflow"];
+  const hasAllSections = required.every((section) =>
+    new RegExp(`#\\s*${section}\\b`, "i").test(text)
+  );
+
+  if (hasAllSections) {
+    return text.trim();
+  }
+
+  const safeContext = text.trim() || userInput;
+  return [
+    "# Role",
+    `- 作为相关领域的专家，负责将需求转成可执行的 Prompt。`,
+    "# Context",
+    `- 用户需求：${userInput}`,
+    `- 额外说明：${safeContext}`,
+    "# Skills",
+    "- 拆解需求、补全缺失信息、给出清晰的输入输出指引。",
+    "- 指导模型在约束内生成代码、文本或分析结果。",
+    "# Constraints",
+    "- 仅输出 Prompt，不提供可执行代码。",
+    "- 使用中文，内容简洁可复制。",
+    "# Workflow",
+    "1. 明确目标与预期产出。",
+    "2. 标注输入格式、上下文与依赖。",
+    "3. 约束模型语气、风格、长度与边界。",
+    "4. 说明评估标准与交付方式。",
+    "5. 提醒模型总结或校验结果。",
+  ].join("\n");
 }
 
 export default function HomePage() {
@@ -377,6 +415,8 @@ export default function HomePage() {
     setLoading(true);
     setData(null);
     setCodeResult(null);
+    if (mode === "prompt") setPromptResult(null);
+    if (mode === "debug") setDebugResult(null);
     if (mode === "latex") setLatexResult("");
 
     try {
@@ -474,9 +514,10 @@ export default function HomePage() {
       } else if (mode === "latex") {
         setLatexResult(normalizeLatex(content));
       } else if (mode === "prompt") {
+        const normalizedPrompt = ensureStructuredPrompt(content, trimmed);
         setPromptResult({
-          title: deriveTitleFromMarkdown(content),
-          markdown: content,
+          title: deriveTitleFromMarkdown(normalizedPrompt),
+          markdown: normalizedPrompt,
         });
       } else if (mode === "debug") {
         const parsed = parseJsonObject(content);
@@ -1062,7 +1103,13 @@ export default function HomePage() {
               <CardDescription>以下内容由模型实时生成，包含结构化 Prompt。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {promptResult ? (
+              {loading ? (
+                <div className="space-y-3 text-sm text-[color:var(--muted)]">
+                  <div className="h-4 w-32 animate-pulse rounded-full bg-black/10" />
+                  <div className="h-4 w-64 animate-pulse rounded-full bg-black/10" />
+                  <div className="h-4 w-52 animate-pulse rounded-full bg-black/10" />
+                </div>
+              ) : promptResult ? (
                 <>
                   <div className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-[color:var(--ink)]">
                     {promptResult.title}
@@ -1074,6 +1121,9 @@ export default function HomePage() {
               ) : (
                 <div className="text-sm text-[color:var(--muted)]">请先输入需求并点击“生成 Prompt”。</div>
               )}
+              {!loading && error ? (
+                <div className="text-sm text-red-600">{error}</div>
+              ) : null}
             </CardContent>
           </Card>
         ) : mode === "debug" ? (
@@ -1083,7 +1133,13 @@ export default function HomePage() {
               <CardDescription>以下内容由模型实时生成，包含分析与修复建议。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {debugResult ? (
+              {loading ? (
+                <div className="space-y-3 text-sm text-[color:var(--muted)]">
+                  <div className="h-4 w-32 animate-pulse rounded-full bg-black/10" />
+                  <div className="h-4 w-64 animate-pulse rounded-full bg-black/10" />
+                  <div className="h-4 w-52 animate-pulse rounded-full bg-black/10" />
+                </div>
+              ) : debugResult ? (
                 <>
                   <div className="rounded-xl bg-white/70 p-3 text-sm text-[color:var(--ink)]">
                     <strong>分析：</strong> {debugResult.analysis}
@@ -1095,7 +1151,7 @@ export default function HomePage() {
               ) : (
                 <div className="text-sm text-[color:var(--muted)]">请粘贴报错并点击“分析报错”。</div>
               )}
-              {error ? <div className="text-sm text-red-600">{error}</div> : null}
+              {!loading && error ? <div className="text-sm text-red-600">{error}</div> : null}
             </CardContent>
           </Card>
         ) : (
