@@ -1,7 +1,17 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Code, Image, QrCode, Settings, Sigma, Workflow } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Code,
+  Home,
+  Image,
+  QrCode,
+  Settings,
+  Sigma,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
 import { BasePanel } from "../components/base-panel";
@@ -10,7 +20,6 @@ import { LatexPanel } from "../components/latex-panel";
 import { QrPanel } from "../components/qr-panel";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { OutputPanel } from "../components/output-panel";
 import { convertBase, type BaseConversion } from "../lib/base-convert";
@@ -39,6 +48,15 @@ const CODE_STYLE_OPTIONS = [
   { value: "concise", label: "精简" },
   { value: "detailed", label: "详细" },
 ] as const;
+
+const NAV_ITEMS: { value: Mode; label: string; icon: LucideIcon; hint: string }[] = [
+  { value: "math", label: "公式翻译官", icon: Sigma, hint: "LaTeX 公式解读与代码实现" },
+  { value: "diagram", label: "架构图生成器", icon: Workflow, hint: "流程描述转 Mermaid" },
+  { value: "code", label: "代码解析", icon: Code, hint: "代码解释与伪代码生成" },
+  { value: "latex", label: "图转 LaTeX", icon: Image, hint: "截图识别为 LaTeX" },
+  { value: "base", label: "进制转换", icon: ArrowLeftRight, hint: "多进制实时转换" },
+  { value: "qr", label: "二维码生成器", icon: QrCode, hint: "自定义样式二维码" },
+];
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
 type CodeStyleId = (typeof CODE_STYLE_OPTIONS)[number]["value"];
@@ -118,6 +136,7 @@ function normalizeLatex(value: string) {
 
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
+  const [isHome, setIsHome] = useState(true);
   const [model, setModel] = useState<ModelId>(MODEL_OPTIONS[0].value);
   const [visionModel, setVisionModel] = useState<string>(VISION_MODEL_OPTIONS[0].value);
   const [input, setInput] = useState("");
@@ -213,6 +232,7 @@ export default function HomePage() {
   const handleModeChange = (value: string) => {
     const nextMode = value as Mode;
     setMode(nextMode);
+    setIsHome(false);
     setError(null);
     setBaseError(null);
     setLoading(false);
@@ -420,6 +440,38 @@ export default function HomePage() {
     }
   };
 
+  const renderNavGrid = (variant: "full" | "compact" = "full") => {
+    const tileSize = variant === "compact" ? "w-20 sm:w-24" : "w-24 sm:w-28";
+    const gridCols =
+      variant === "compact" ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-6";
+
+    return (
+      <div className={`grid ${gridCols} gap-3 sm:gap-4`}>
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive = !isHome && mode === item.value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => handleModeChange(item.value)}
+              title={`${item.label} - ${item.hint}`}
+              aria-pressed={isActive}
+              className={`glass group relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-white/40 text-[color:var(--ink)] shadow-lg transition duration-200 hover:-translate-y-1 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] ${tileSize} ${isActive ? "ring-2 ring-[color:var(--accent)]" : ""}`}
+            >
+              <div className="absolute inset-0 bg-white/40 opacity-0 transition group-hover:opacity-100" />
+              <div className="relative flex flex-col items-center gap-1 text-center">
+                <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-[11px] font-medium sm:text-xs">{item.label}</span>
+                <span className="hidden text-[10px] text-[color:var(--muted)] sm:block">{item.hint}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="relative min-h-screen px-6 py-10">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -432,15 +484,17 @@ export default function HomePage() {
           <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
             Shen's tools
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 rounded-full"
-            onClick={() => setShowSettings(true)}
-          >
-            <Settings className="h-4 w-4" />
-            设置
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 rounded-full"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings className="h-4 w-4" />
+              设置
+            </Button>
+          </div>
         </div>
         <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Shen's tools</h1>
         <p className="max-w-2xl text-sm text-[color:var(--muted)] sm:text-base">
@@ -449,66 +503,68 @@ export default function HomePage() {
       </header>
 
       <section className="mx-auto mt-8 w-full max-w-6xl animate-fade-up">
-        <Tabs value={mode} onValueChange={handleModeChange}>
-          <TabsList className="w-full justify-start gap-2 sm:w-auto">
-            <TabsTrigger value="math">
-              <Sigma className="h-4 w-4" />
-              公式翻译官
-            </TabsTrigger>
-            <TabsTrigger value="diagram">
-              <Workflow className="h-4 w-4" />
-              架构图生成器
-            </TabsTrigger>
-            <TabsTrigger value="code">
-              <Code className="h-4 w-4" />
-              代码解析
-            </TabsTrigger>
-            <TabsTrigger value="latex">
-              <Image className="h-4 w-4" />
-              图转 LaTeX
-            </TabsTrigger>
-            <TabsTrigger value="base">
-              <ArrowLeftRight className="h-4 w-4" />
-              进制转换
-            </TabsTrigger>
-            <TabsTrigger value="qr">
-              <QrCode className="h-4 w-4" />
-              二维码生成器
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {isHome ? (
+          <>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="text-sm text-[color:var(--muted)]">
+                点开网页先看到半透明的小方块，悬停可检视用途，点击进入对应模块。
+              </p>
+              <span className="hidden items-center gap-2 rounded-full border border-[var(--border)] bg-white/60 px-3 py-1 text-xs font-semibold text-[color:var(--muted)] sm:inline-flex">
+                毛玻璃导航
+              </span>
+            </div>
+            {renderNavGrid("full")}
+          </>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-2 rounded-full"
+                onClick={() => setIsHome(true)}
+              >
+                <Home className="h-4 w-4" />
+                返回主页面
+              </Button>
+              <span className="text-xs text-[color:var(--muted)]">点击任意方块切换模块</span>
+            </div>
+            {renderNavGrid("compact")}
+          </>
+        )}
       </section>
 
-      <main className="mx-auto mt-6 grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <Card className="glass animate-fade-up">
-          <CardHeader>
-            <CardTitle>
-              {mode === "math"
-                ? "输入公式"
-                : mode === "diagram"
-                ? "输入描述"
-                : mode === "code"
-                ? "输入代码"
-                : mode === "latex"
-                ? "上传公式"
-                : mode === "base"
-                ? "输入数值"
-                : "输入内容"}
-            </CardTitle>
-            <CardDescription>
-              {mode === "math"
-                ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
-                : mode === "diagram"
-                ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
-                : mode === "code"
-                ? "粘贴代码片段，我们会给出解释与伪代码。"
-                : mode === "latex"
-                ? "上传公式截图，识别并输出 LaTeX。"
-                : mode === "base"
-                ? "设置输入/输出进制，完成任意进制之间的转换。"
-                : "输入任意文字或链接，实时生成可自定义的二维码。"}
-            </CardDescription>
-          </CardHeader>
+      {!isHome ? (
+        <main className="mx-auto mt-6 grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <Card className="glass animate-fade-up">
+            <CardHeader>
+              <CardTitle>
+                {mode === "math"
+                  ? "输入公式"
+                  : mode === "diagram"
+                  ? "输入描述"
+                  : mode === "code"
+                  ? "输入代码"
+                  : mode === "latex"
+                  ? "上传公式"
+                  : mode === "base"
+                  ? "输入数值"
+                  : "输入内容"}
+              </CardTitle>
+              <CardDescription>
+                {mode === "math"
+                  ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
+                  : mode === "diagram"
+                  ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
+                  : mode === "code"
+                  ? "粘贴代码片段，我们会给出解释与伪代码。"
+                  : mode === "latex"
+                  ? "上传公式截图，识别并输出 LaTeX。"
+                  : mode === "base"
+                  ? "设置输入/输出进制，完成任意进制之间的转换。"
+                  : "输入任意文字或链接，实时生成可自定义的二维码。"}
+              </CardDescription>
+            </CardHeader>
           <CardContent className="space-y-4">
             {mode === "base" ? (
               <div className="grid gap-3 lg:grid-cols-2">
@@ -959,7 +1015,8 @@ export default function HomePage() {
             data={data}
           />
         )}
-      </main>
+        </main>
+      ) : null}
 
       <ApiSettings
         open={showSettings}
