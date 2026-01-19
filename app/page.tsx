@@ -41,6 +41,7 @@ const CODE_STYLE_OPTIONS = [
 ] as const;
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
+type VisionModelId = (typeof VISION_MODEL_OPTIONS)[number]["value"];
 
 const BASE_FIELDS = [
   { base: 2, label: "二进制", helper: "示例：101011 或 0b101011" },
@@ -118,7 +119,9 @@ function normalizeLatex(value: string) {
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>(MODEL_OPTIONS[0].value);
-  const [visionModel, setVisionModel] = useState(VISION_MODEL_OPTIONS[0].value);
+  const [visionModel, setVisionModel] = useState<VisionModelId>(
+    VISION_MODEL_OPTIONS[0].value
+  );
   const [input, setInput] = useState("");
   const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
