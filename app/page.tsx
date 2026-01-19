@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, QrCode, Settings, Sigma, Workflow } from "lucide-react";
+import { ArrowLeftRight, BookOpen, QrCode, Settings, Sigma, Workflow } from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
 import { BasePanel } from "../components/base-panel";
+import { PaperPanel, type PaperData } from "../components/paper-panel";
 import { QrPanel } from "../components/qr-panel";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -14,7 +15,8 @@ import { OutputPanel } from "../components/output-panel";
 import { convertBase, type BaseConversion } from "../lib/base-convert";
 import type { QrCornerDotType, QrCornerSquareType, QrDotsType } from "../components/qr-renderer";
 
-type AiMode = "math" | "diagram";
+type AiMode = "math" | "diagram" | "paper";
+
 type Mode = AiMode | "base" | "qr";
 
 const STORAGE_KEY = "siliconflow_api_key";
@@ -43,6 +45,12 @@ const SYSTEM_PROMPTS: Record<AiMode, string> = {
   diagram:
     "你是一名系统架构师。请将用户的描述转化为 Mermaid.js 的 flowchart 代码。仅返回代码块内容，" +
     "以 graph TD 或适当的类型开头。不要包含 markdown 格式标记。",
+  paper:
+    "你是一名科研助理。请对用户提供的论文摘要或段落进行速读解析，仅返回一个 JSON 对象，包含以下字段：" +
+    "contributions: 字符串数组，列出主要贡献点；" +
+    "method: 字符串，概括核心方法；" +
+    "experiments: 字符串，概括实验设置/数据集/指标；" +
+    "limitations: 字符串，概括局限性或可能风险。",
 };
 
 type MathData = {
@@ -88,6 +96,7 @@ export default function HomePage() {
   const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
+  const [paperData, setPaperData] = useState<PaperData | null>(null);
   const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
   const [baseInputs, setBaseInputs] = useState<Record<number, string>>({
     2: "",
@@ -125,19 +134,28 @@ export default function HomePage() {
   }, []);
 
   const placeholder = useMemo(() => {
-    return mode === "math"
-      ? "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^{m} y^{(i)} \\log \\hat{y}^{(i)}"
-      : mode === "diagram"
-      ? "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401。"
-      : "例如：FFEE 或 0b101010";
+    if (mode === "math") {
+      return "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^{m} y^{(i)} \\log \\hat{y}^{(i)}";
+    }
+    if (mode === "diagram") {
+      return "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401。";
+    }
+    if (mode === "paper") {
+      return "例如：本文提出一种...，在多个数据集上达到 SOTA。";
+    }
+    return "例如：FFEE 或 0b101010";
   }, [mode]);
 
   const actionLabel = useMemo(() => {
-    return loading ? "生成中..." : mode === "math" ? "解码" : "生成图表";
+    if (loading) return "生成中...";
+    if (mode === "math") return "解码";
+    if (mode === "diagram") return "生成图表";
+    if (mode === "paper") return "速读";
+    return "生成";
   }, [loading, mode]);
 
   const handleModeChange = (value: string) => {
-    if (value !== "math" && value !== "diagram" && value !== "base" && value !== "qr") {
+    if (value !== "math" && value !== "diagram" && value !== "paper" && value !== "base" && value !== "qr") {
       return;
     }
     setMode(value);
@@ -145,6 +163,7 @@ export default function HomePage() {
     setQrInput("");
     setLastInput("");
     setData(null);
+    setPaperData(null);
     setBaseResult(null);
     setError(null);
     setLoading(false);
@@ -225,6 +244,8 @@ export default function HomePage() {
 
     setLoading(true);
     setError(null);
+    setData(null);
+    setPaperData(null);
 
     try {
       const response = await fetch("https://api.siliconflow.cn/v1/chat/completions", {
@@ -281,6 +302,21 @@ export default function HomePage() {
           symbols: Array.isArray(parsedData.symbols) ? parsedData.symbols : [],
           code: parsedData.code || "",
         });
+      } else if (mode === "paper") {
+        const parsed = parseJsonObject(content);
+        if (!parsed || typeof parsed !== "object") {
+          throw new Error("模型未返回有效 JSON。");
+        }
+
+        const parsedData = parsed as Partial<PaperData>;
+        setPaperData({
+          contributions: Array.isArray(parsedData.contributions)
+            ? parsedData.contributions.filter((item) => typeof item === "string")
+            : [],
+          method: parsedData.method || "",
+          experiments: parsedData.experiments || "",
+          limitations: parsedData.limitations || "",
+        });
       } else {
         setData({ mermaid: content });
       }
@@ -317,11 +353,9 @@ export default function HomePage() {
             设置
           </Button>
         </div>
-        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
-          Shen's tools
-        </h1>
+        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Shen's tools</h1>
         <p className="max-w-2xl text-sm text-[color:var(--muted)] sm:text-base">
-          集成公式解码、架构绘图与进制转换的轻量工具集，帮助你更快完成学习与开发任务。
+          集成公式解码、架构绘图、论文速读与进制转换的轻量工具集，帮助你更快完成学习与开发任务。
         </p>
       </header>
 
@@ -335,6 +369,10 @@ export default function HomePage() {
             <TabsTrigger value="diagram">
               <Workflow className="h-4 w-4" />
               📊 架构图生成器
+            </TabsTrigger>
+            <TabsTrigger value="paper">
+              <BookOpen className="h-4 w-4" />
+              📚 论文速读器
             </TabsTrigger>
             <TabsTrigger value="base">
               <ArrowLeftRight className="h-4 w-4" />
@@ -356,6 +394,8 @@ export default function HomePage() {
                 ? "输入公式"
                 : mode === "diagram"
                 ? "输入描述"
+                : mode === "paper"
+                ? "输入摘要"
                 : mode === "base"
                 ? "输入数值"
                 : "输入内容"}
@@ -365,6 +405,8 @@ export default function HomePage() {
                 ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
                 : mode === "diagram"
                 ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
+                : mode === "paper"
+                ? "粘贴摘要或段落，我们会提炼贡献点与实验信息。"
                 : mode === "base"
                 ? "设置输入/输出进制，完成任意进制之间的转换。"
                 : "输入任意文字或链接，实时生成可自定义的二维码。"}
@@ -698,6 +740,8 @@ export default function HomePage() {
                   ? "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。"
                   : mode === "diagram"
                   ? "支持条件、分支与循环的流程描述。"
+                  : mode === "paper"
+                  ? "支持中英文摘要或段落，自动提炼结构化信息。"
                   : mode === "base"
                   ? "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。"
                   : "支持文字与链接，自动实时生成二维码。"}
@@ -717,6 +761,8 @@ export default function HomePage() {
 
         {mode === "base" ? (
           <BasePanel result={baseResult} error={error} />
+        ) : mode === "paper" ? (
+          <PaperPanel data={paperData} error={error} loading={loading} />
         ) : mode === "qr" ? (
           <QrPanel
             data={qrInput}
