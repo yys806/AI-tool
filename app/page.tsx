@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Settings, Sigma, Workflow } from "lucide-react";
+import { QrCode, Settings, Sigma, Workflow } from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
 import { BasePanel } from "../components/base-panel";
+import { QrPanel } from "../components/qr-panel";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { OutputPanel } from "../components/output-panel";
 import { convertBase, type BaseConversion } from "../lib/base-convert";
+import type { QrCornerDotType, QrCornerSquareType, QrDotsType } from "../components/qr-renderer";
 
 type AiMode = "math" | "diagram";
-type Mode = AiMode | "base";
+type Mode = AiMode | "base" | "qr";
 
 const STORAGE_KEY = "siliconflow_api_key";
 
@@ -83,6 +85,7 @@ export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>("deepseek-ai/DeepSeek-V3.2");
   const [input, setInput] = useState("");
+  const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
   const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
@@ -97,6 +100,19 @@ export default function HomePage() {
   const [baseSource, setBaseSource] = useState<{ base: number; value: string } | null>(
     null
   );
+  const [qrSize, setQrSize] = useState(260);
+  const [qrMargin, setQrMargin] = useState(8);
+  const [qrDotsType, setQrDotsType] = useState<QrDotsType>("rounded");
+  const [qrCornersSquareType, setQrCornersSquareType] =
+    useState<QrCornerSquareType>("extra-rounded");
+  const [qrCornersDotType, setQrCornersDotType] = useState<QrCornerDotType>("dot");
+  const [qrDotsColor, setQrDotsColor] = useState("#1d7a71");
+  const [qrCornersColor, setQrCornersColor] = useState("#2f5d8a");
+  const [qrBackgroundColor, setQrBackgroundColor] = useState("#ffffff");
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrImageSize, setQrImageSize] = useState(0.28);
+  const [qrImageMargin, setQrImageMargin] = useState(6);
+  const [qrHideBackgroundDots, setQrHideBackgroundDots] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -121,9 +137,12 @@ export default function HomePage() {
   }, [loading, mode]);
 
   const handleModeChange = (value: string) => {
-    if (value !== "math" && value !== "diagram" && value !== "base") return;
+    if (value !== "math" && value !== "diagram" && value !== "base" && value !== "qr") {
+      return;
+    }
     setMode(value);
     setInput("");
+    setQrInput("");
     setLastInput("");
     setData(null);
     setBaseResult(null);
@@ -166,7 +185,7 @@ export default function HomePage() {
       for (const field of BASE_FIELDS) {
         const item = result?.all.find((entry) => entry.base === field.base);
         if (item) {
-          next[field.base] = item.value;
+          next[field.base] = field.base === fromBase ? value : item.value;
         }
       }
       return next;
@@ -174,7 +193,7 @@ export default function HomePage() {
 
     const customItem = result?.all.find((entry) => entry.base === customBase);
     if (customItem) {
-      setCustomValue(customItem.value);
+      setCustomValue(fromBase === customBase ? value : customItem.value);
     }
     setLastInput(trimmed);
   };
@@ -193,7 +212,7 @@ export default function HomePage() {
       return;
     }
 
-    if (mode === "base") {
+    if (mode === "base" || mode === "qr") {
       return;
     }
 
@@ -321,6 +340,10 @@ export default function HomePage() {
               <ArrowLeftRight className="h-4 w-4" />
               🔢 进制转换
             </TabsTrigger>
+            <TabsTrigger value="qr">
+              <QrCode className="h-4 w-4" />
+              📷 二维码生成器
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </section>
@@ -329,18 +352,26 @@ export default function HomePage() {
         <Card className="glass animate-fade-up">
           <CardHeader>
             <CardTitle>
-              {mode === "math" ? "输入公式" : mode === "diagram" ? "输入描述" : "输入数值"}
+              {mode === "math"
+                ? "输入公式"
+                : mode === "diagram"
+                ? "输入描述"
+                : mode === "base"
+                ? "输入数值"
+                : "输入内容"}
             </CardTitle>
             <CardDescription>
               {mode === "math"
                 ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
                 : mode === "diagram"
                 ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
-                : "设置输入/输出进制，完成任意进制之间的转换。"}
+                : mode === "base"
+                ? "设置输入/输出进制，完成任意进制之间的转换。"
+                : "输入任意文字或链接，实时生成可自定义的二维码。"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mode !== "base" ? (
+            {mode !== "base" && mode !== "qr" ? (
               <>
                 <div className="space-y-2">
                   <label
@@ -369,7 +400,7 @@ export default function HomePage() {
                   onChange={(event) => setInput(event.target.value)}
                 />
               </>
-            ) : (
+            ) : mode === "base" ? (
               <>
                 <div className="grid gap-3 lg:grid-cols-2">
                   {BASE_FIELDS.map((field) => (
@@ -422,6 +453,244 @@ export default function HomePage() {
                   </div>
                 </div>
               </>
+            ) : (
+              <>
+                <Textarea
+                  placeholder="例如：https://example.com 或 任何文字"
+                  value={qrInput}
+                  onChange={(event) => setQrInput(event.target.value)}
+                />
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-size"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      尺寸
+                    </label>
+                    <input
+                      id="qr-size"
+                      type="number"
+                      min={180}
+                      max={600}
+                      value={qrSize}
+                      onChange={(event) => setQrSize(Number(event.target.value))}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-margin"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      边距
+                    </label>
+                    <input
+                      id="qr-margin"
+                      type="number"
+                      min={0}
+                      max={24}
+                      value={qrMargin}
+                      onChange={(event) => setQrMargin(Number(event.target.value))}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-dots"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      点形状
+                    </label>
+                    <select
+                      id="qr-dots"
+                      value={qrDotsType}
+                      onChange={(event) => setQrDotsType(event.target.value as QrDotsType)}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    >
+                      <option value="dots">点状</option>
+                      <option value="rounded">圆角</option>
+                      <option value="classy">艺术</option>
+                      <option value="classy-rounded">艺术圆角</option>
+                      <option value="square">方形</option>
+                      <option value="extra-rounded">超圆角</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-corner"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      框形状
+                    </label>
+                    <select
+                      id="qr-corner"
+                      value={qrCornersSquareType}
+                      onChange={(event) =>
+                        setQrCornersSquareType(
+                          event.target.value as QrCornerSquareType
+                        )
+                      }
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    >
+                      <option value="square">方形</option>
+                      <option value="dot">圆点</option>
+                      <option value="extra-rounded">圆角</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-corner-dot"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      框内点
+                    </label>
+                    <select
+                      id="qr-corner-dot"
+                      value={qrCornersDotType}
+                      onChange={(event) =>
+                        setQrCornersDotType(event.target.value as QrCornerDotType)
+                      }
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    >
+                      <option value="dot">圆点</option>
+                      <option value="square">方块</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-dot-color"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      点颜色
+                    </label>
+                    <input
+                      id="qr-dot-color"
+                      type="color"
+                      value={qrDotsColor}
+                      onChange={(event) => setQrDotsColor(event.target.value)}
+                      className="glass h-12 w-full rounded-2xl p-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-corner-color"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      框颜色
+                    </label>
+                    <input
+                      id="qr-corner-color"
+                      type="color"
+                      value={qrCornersColor}
+                      onChange={(event) => setQrCornersColor(event.target.value)}
+                      className="glass h-12 w-full rounded-2xl p-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="qr-bg-color"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      背景色
+                    </label>
+                    <input
+                      id="qr-bg-color"
+                      type="color"
+                      value={qrBackgroundColor}
+                      onChange={(event) => setQrBackgroundColor(event.target.value)}
+                      className="glass h-12 w-full rounded-2xl p-2"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label
+                      htmlFor="qr-image"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      嵌入图片
+                    </label>
+                    {qrImage ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQrImage(null)}
+                      >
+                        移除图片
+                      </Button>
+                    ) : null}
+                  </div>
+                  <input
+                    id="qr-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setQrImage(reader.result as string);
+                      reader.readAsDataURL(file);
+                      event.currentTarget.value = "";
+                    }}
+                    className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] file:mr-4 file:rounded-full file:border-0 file:bg-[color:var(--accent)] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                  />
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="qr-image-size"
+                        className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                      >
+                        图片占比
+                      </label>
+                      <input
+                        id="qr-image-size"
+                        type="range"
+                        min={0.15}
+                        max={0.45}
+                        step={0.01}
+                        value={qrImageSize}
+                        onChange={(event) =>
+                          setQrImageSize(Number(event.target.value))
+                        }
+                        className="w-full accent-[color:var(--accent)]"
+                      />
+                      <div className="text-xs text-[color:var(--muted)]">
+                        当前占比：{Math.round(qrImageSize * 100)}%
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="qr-image-margin"
+                        className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                      >
+                        图片边距
+                      </label>
+                      <input
+                        id="qr-image-margin"
+                        type="number"
+                        min={0}
+                        max={16}
+                        value={qrImageMargin}
+                        onChange={(event) =>
+                          setQrImageMargin(Number(event.target.value))
+                        }
+                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-3 text-sm text-[color:var(--muted)]">
+                    <input
+                      type="checkbox"
+                      checked={qrHideBackgroundDots}
+                      onChange={(event) => setQrHideBackgroundDots(event.target.checked)}
+                      className="h-4 w-4 rounded border border-[var(--border)] text-[color:var(--accent)]"
+                    />
+                    隐藏图片背景点阵
+                  </label>
+                </div>
+              </>
             )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-[color:var(--muted)]">
@@ -429,11 +698,13 @@ export default function HomePage() {
                   ? "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。"
                   : mode === "diagram"
                   ? "支持条件、分支与循环的流程描述。"
-                  : "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。"}
+                  : mode === "base"
+                  ? "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。"
+                  : "支持文字与链接，自动实时生成二维码。"}
               </span>
-              {mode === "base" ? (
+              {mode === "base" || mode === "qr" ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold text-[color:var(--muted)]">
-                  实时转换已开启
+                  {mode === "base" ? "实时转换已开启" : "实时生成已开启"}
                 </span>
               ) : (
                 <Button onClick={handleSubmit} disabled={loading}>
@@ -446,6 +717,24 @@ export default function HomePage() {
 
         {mode === "base" ? (
           <BasePanel result={baseResult} error={error} />
+        ) : mode === "qr" ? (
+          <QrPanel
+            data={qrInput}
+            options={{
+              size: qrSize,
+              margin: qrMargin,
+              dotsType: qrDotsType,
+              dotsColor: qrDotsColor,
+              cornersSquareType: qrCornersSquareType,
+              cornersDotType: qrCornersDotType,
+              cornersColor: qrCornersColor,
+              backgroundColor: qrBackgroundColor,
+              image: qrImage,
+              imageSize: qrImageSize,
+              imageMargin: qrImageMargin,
+              hideBackgroundDots: qrHideBackgroundDots,
+            }}
+          />
         ) : (
           <OutputPanel
             mode={mode as AiMode}
