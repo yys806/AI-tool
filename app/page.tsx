@@ -783,7 +783,7 @@ export default function HomePage() {
           />
         ) : (
           <OutputPanel
-            mode={mode as AiMode}
+            mode={mode === "diagram" ? "diagram" : "math"}
             input={lastInput || input}
             loading={loading}
             error={error}
