@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { QrCode, Settings, Sigma, Workflow } from "lucide-react";
+import { ArrowLeftRight, QrCode, Settings, Sigma, Workflow } from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
 import { BasePanel } from "../components/base-panel";
