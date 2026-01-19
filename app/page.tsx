@@ -485,6 +485,17 @@ export default function HomePage() {
             Shen's tools
           </div>
           <div className="flex items-center gap-2">
+            {!isHome ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-2 rounded-full"
+                onClick={() => setIsHome(true)}
+              >
+                <Home className="h-4 w-4" />
+                返回主界面
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -503,35 +514,7 @@ export default function HomePage() {
       </header>
 
       <section className="mx-auto mt-8 w-full max-w-6xl animate-fade-up">
-        {isHome ? (
-          <>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <p className="text-sm text-[color:var(--muted)]">
-                点开网页先看到半透明的小方块，悬停可检视用途，点击进入对应模块。
-              </p>
-              <span className="hidden items-center gap-2 rounded-full border border-[var(--border)] bg-white/60 px-3 py-1 text-xs font-semibold text-[color:var(--muted)] sm:inline-flex">
-                毛玻璃导航
-              </span>
-            </div>
-            {renderNavGrid("full")}
-          </>
-        ) : (
-          <>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                className="gap-2 rounded-full"
-                onClick={() => setIsHome(true)}
-              >
-                <Home className="h-4 w-4" />
-                返回主页面
-              </Button>
-              <span className="text-xs text-[color:var(--muted)]">点击任意方块切换模块</span>
-            </div>
-            {renderNavGrid("compact")}
-          </>
-        )}
+        {isHome ? renderNavGrid("full") : null}
       </section>
 
       {!isHome ? (
