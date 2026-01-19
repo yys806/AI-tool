@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f1ea;
+  --ink: #151515;
+  --muted: #5c5c5c;
+  --card: rgba(255, 255, 255, 0.78);
+  --border: rgba(21, 21, 21, 0.12);
+  --accent: #1d7a71;
+  --accent-2: #e39a3b;
+  --accent-3: #2f5d8a;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-body), "IBM Plex Sans", "Space Grotesk", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 500px at 12% -8%, rgba(29, 122, 113, 0.18), transparent 60%),
+    radial-gradient(900px 420px at 90% 0%, rgba(227, 154, 59, 0.2), transparent 65%),
+    linear-gradient(180deg, #f6f1ea 0%, #fbf9f5 100%);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), "Space Grotesk", "IBM Plex Sans", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: rgba(29, 122, 113, 0.2);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out both;
+}
+
+.glass {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
