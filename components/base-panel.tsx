@@ -13,8 +13,8 @@ export function BasePanel({ result, error }: BasePanelProps) {
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>è½¬æ¢ç»“æœ</CardTitle>
-        <CardDescription>å„è¿›åˆ¶ç»“æœä¸å¿«é€Ÿå¤åˆ¶</CardDescription>
+        <CardTitle>×ª»»½á¹û</CardTitle>
+        <CardDescription>¸÷½øÖÆ½á¹ûÓë¿ìËÙ¸´ÖÆ</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {error ? (
@@ -25,7 +25,7 @@ export function BasePanel({ result, error }: BasePanelProps) {
 
         {!error && !result ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            è¯·è¾“å…¥æ•°å€¼å¹¶ç‚¹å‡»è½¬æ¢ã€‚
+            ÇëÊäÈëÊıÖµ²¢µã»÷×ª»»¡£
           </div>
         ) : null}
 
@@ -34,9 +34,9 @@ export function BasePanel({ result, error }: BasePanelProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-[color:var(--muted)]">
-                  {result.fromBase} è¿›åˆ¶ â†’ {result.toBase} è¿›åˆ¶
+                  {result.fromBase} ½øÖÆ ¡ú {result.toBase} ½øÖÆ
                 </p>
-                <h4 className="text-lg font-semibold">è½¬æ¢ç»“æœ</h4>
+                <h4 className="text-lg font-semibold">×ª»»½á¹û</h4>
               </div>
               <CopyButton value={result.output} />
             </div>
@@ -47,10 +47,7 @@ export function BasePanel({ result, error }: BasePanelProps) {
 
             <div className="grid gap-2 md:grid-cols-2">
               {result.all.map((item) => (
-                <div
-                  key={`base-${item.base}`}
-                  className="glass rounded-2xl p-3 text-sm"
-                >
+                <div key={`base-${item.base}`} className="glass rounded-2xl p-3 text-sm">
                   <div className="font-semibold">{item.label}</div>
                   <div className="text-[color:var(--muted)]">{item.value}</div>
                 </div>

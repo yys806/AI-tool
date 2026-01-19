@@ -37,9 +37,9 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>ç”Ÿæˆç»“æœ</CardTitle>
+        <CardTitle>Éú³É½á¹û</CardTitle>
         <CardDescription>
-          {isMath ? "å…¬å¼æ‹†è§£ä¸å¯æ‰§è¡Œä»£ç " : "è‡ªåŠ¨åŒ–æ¶æ„æµç¨‹å›¾"}
+          {isMath ? "¹«Ê½²ğ½âÓë¿ÉÖ´ĞĞ´úÂë" : "×Ô¶¯»¯¼Ü¹¹Á÷³ÌÍ¼"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -59,7 +59,7 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
 
         {!loading && !error && !data ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            è¿˜æ²¡æœ‰ç”Ÿæˆå†…å®¹ï¼Œå…ˆåœ¨å·¦ä¾§è¾“å…¥å§ã€‚
+            »¹Ã»ÓĞÉú³ÉÄÚÈİ£¬ÏÈÔÚ×ó²àÊäÈë°É¡£
           </div>
         ) : null}
 
@@ -74,25 +74,27 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3">
                   <div className="flex items-center gap-3 text-sm text-[color:var(--muted)]">
                     <Switch
                       checked={showMermaid}
                       onCheckedChange={setShowMermaid}
-                      aria-label="æ˜¾ç¤º Mermaid ä»£ç "
+                      aria-label="ÏÔÊ¾ Mermaid ´úÂë"
                     />
                     <span className="inline-flex items-center gap-2">
                       {showMermaid ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      {showMermaid ? "éšè— Mermaid ä»£ç " : "æ˜¾ç¤º Mermaid ä»£ç "}
+                      {showMermaid ? "Òş²Ø Mermaid ´úÂë" : "ÏÔÊ¾ Mermaid ´úÂë"}
                     </span>
                   </div>
-                  <CopyButton value={(data as DiagramData).mermaid} label="å¤åˆ¶ä»£ç " />
+                  <CopyButton value={(data as DiagramData).mermaid} label="¸´ÖÆ´úÂë" />
                 </div>
 
                 {showMermaid ? (
-                  <pre className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[#101827] p-4 text-xs text-white">
-                    <code>{(data as DiagramData).mermaid}</code>
-                  </pre>
+                  <div className="glass rounded-2xl p-3">
+                    <pre className="overflow-x-auto rounded-xl bg-[#101827] p-4 text-xs text-white">
+                      <code>{(data as DiagramData).mermaid}</code>
+                    </pre>
+                  </div>
                 ) : null}
 
                 <DiagramRenderer code={(data as DiagramData).mermaid} />

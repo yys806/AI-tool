@@ -18,8 +18,8 @@ export function CodePanel({ data, error, loading }: CodePanelProps) {
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>ä»£ç è§£æ</CardTitle>
-        <CardDescription>è§£é‡Š + ä¼ªä»£ç ç»“æ„åŒ–è¾“å‡º</CardDescription>
+        <CardTitle>´úÂë½âÎö</CardTitle>
+        <CardDescription>½âÊÍ + Î±´úÂë½á¹¹»¯Êä³ö</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {loading ? (
@@ -38,27 +38,31 @@ export function CodePanel({ data, error, loading }: CodePanelProps) {
 
         {!loading && !error && !data ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            è¿˜æ²¡æœ‰ç”Ÿæˆå†…å®¹ï¼Œå…ˆç²˜è´´ä»£ç ã€‚
+            »¹Ã»ÓĞÉú³ÉÄÚÈİ£¬ÏÈÕ³Ìù´úÂë°É¡£
           </div>
         ) : null}
 
         {!loading && !error && data ? (
           <div className="space-y-4">
             <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-[color:var(--muted)]">è§£é‡Š</h4>
-              <p className="text-sm text-[color:var(--ink)]">{data.explanation}</p>
+              <h4 className="text-sm font-semibold text-[color:var(--muted)]">½âÊÍ</h4>
+              <div className="glass rounded-2xl p-3">
+                <p className="text-sm leading-relaxed text-[color:var(--ink)]">
+                  {data.explanation}
+                </p>
+              </div>
             </section>
 
             <section className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-[color:var(--muted)]">
-                  ä¼ªä»£ç 
-                </h4>
+                <h4 className="text-sm font-semibold text-[color:var(--muted)]">Î±´úÂë</h4>
                 <CopyButton value={data.pseudocode} />
               </div>
-              <pre className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[#101827] p-4 text-xs text-white">
-                <code>{data.pseudocode}</code>
-              </pre>
+              <div className="glass rounded-2xl p-3">
+                <pre className="overflow-x-auto rounded-xl bg-[#101827] p-4 text-xs text-white">
+                  <code>{data.pseudocode}</code>
+                </pre>
+              </div>
             </section>
           </div>
         ) : null}

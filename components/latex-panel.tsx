@@ -14,12 +14,13 @@ type LatexPanelProps = {
 
 export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
   const hasLatex = Boolean(latex.trim());
+  const markdownLatex = hasLatex ? `$${latex}$` : "";
 
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>LaTeX ç»“æœ</CardTitle>
-        <CardDescription>è¯†åˆ«ç»“æœä¸å¯è§†åŒ–é¢„è§ˆ</CardDescription>
+        <CardTitle>LaTeX ½á¹û</CardTitle>
+        <CardDescription>Ê¶±ğ½á¹ûÓë¿ÉÊÓ»¯Ô¤ÀÀ</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {loading ? (
@@ -38,7 +39,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
 
         {!loading && !error && !image ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            ä¸Šä¼ å…¬å¼æˆªå›¾åå³å¯è¯†åˆ«ã€‚
+            ÉÏ´«¹«Ê½½ØÍ¼ºó¼´¿ÉÊ¶±ğ¡£
           </div>
         ) : null}
 
@@ -47,7 +48,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
             <div className="glass flex items-center justify-center rounded-2xl p-4">
               <img
                 src={image}
-                alt="å…¬å¼å›¾ç‰‡é¢„è§ˆ"
+                alt="¹«Ê½Í¼Æ¬Ô¤ÀÀ"
                 className="max-h-48 w-auto rounded-xl object-contain"
               />
             </div>
@@ -59,17 +60,19 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-[color:var(--muted)]">
-                    LaTeX æºç 
+                    Markdown ¹«Ê½
                   </h4>
-                  <CopyButton value={latex} />
+                  <CopyButton value={markdownLatex} />
                 </div>
-                <pre className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[#101827] p-4 text-xs text-white">
-                  <code>{latex}</code>
-                </pre>
+                <div className="glass rounded-2xl p-3">
+                  <pre className="overflow-x-auto rounded-xl bg-[#101827] p-4 text-xs text-white">
+                    <code>{markdownLatex}</code>
+                  </pre>
+                </div>
               </>
             ) : (
               <div className="text-sm text-[color:var(--muted)]">
-                ç­‰å¾…è¯†åˆ«ç»“æœ...
+                µÈ´ıÊ¶±ğ½á¹û...
               </div>
             )}
           </div>

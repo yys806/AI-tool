@@ -30,9 +30,8 @@ const MODEL_OPTIONS = [
 ] as const;
 
 const VISION_MODEL_OPTIONS = [
-  { value: "Qwen/Qwen-Image", label: "Qwen-Image" },
-  { value: "Qwen/Qwen-Image-Edit-2509", label: "Qwen-Image-Edit-2509" },
-  { value: "__custom__", label: "自定义模型" },
+  { value: "zai-org/GLM-4.6V", label: "GLM-4.6V" },
+  { value: "Qwen/Qwen3-VL-32B-Instruct", label: "Qwen3-VL-32B-Instruct" },
 ] as const;
 
 const CODE_STYLE_OPTIONS = [
@@ -121,7 +120,6 @@ export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>(MODEL_OPTIONS[0].value);
   const [visionModel, setVisionModel] = useState<string>(VISION_MODEL_OPTIONS[0].value);
-  const [customVisionModel, setCustomVisionModel] = useState("");
   const [input, setInput] = useState("");
   const [qrInput, setQrInput] = useState("");
   const [lastInput, setLastInput] = useState("");
@@ -300,12 +298,6 @@ export default function HomePage() {
         setError("请先上传公式截图。");
         return;
       }
-      const requestVision =
-        visionModel === "__custom__" ? customVisionModel.trim() : visionModel.trim();
-      if (!requestVision) {
-        setError("请先选择或填写视觉模型 ID。");
-        return;
-      }
     } else if (!trimmed) {
       setError("请先输入内容。");
       return;
@@ -331,12 +323,7 @@ export default function HomePage() {
             }。`
           : SYSTEM_PROMPTS[mode];
 
-      const requestModel =
-        mode === "latex"
-          ? visionModel === "__custom__"
-            ? customVisionModel.trim()
-            : visionModel.trim()
-          : model;
+      const requestModel = mode === "latex" ? visionModel : model;
 
       const messages =
         mode === "latex"
@@ -834,16 +821,6 @@ export default function HomePage() {
                       </option>
                     ))}
                   </select>
-                  {visionModel === "__custom__" ? (
-                    <input
-                      type="text"
-                      value={customVisionModel}
-                      onChange={(event) => setCustomVisionModel(event.target.value)}
-                      disabled={loading}
-                      placeholder="自定义视觉模型 ID，例如：my-org/my-vision-model"
-                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                    />
-                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <label
