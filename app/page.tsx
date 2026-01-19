@@ -286,6 +286,10 @@ export default function HomePage() {
     if (loading) return;
     setError(null);
 
+    if (mode === "base" || mode === "qr") {
+      return;
+    }
+
     const trimmed = input.trim();
 
     if (mode === "latex") {
