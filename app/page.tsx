@@ -42,6 +42,7 @@ const CODE_STYLE_OPTIONS = [
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
 type VisionModelId = (typeof VISION_MODEL_OPTIONS)[number]["value"];
+type CodeStyleId = (typeof CODE_STYLE_OPTIONS)[number]["value"];
 
 const BASE_FIELDS = [
   { base: 2, label: "二进制", helper: "示例：101011 或 0b101011" },
@@ -140,7 +141,7 @@ export default function HomePage() {
   const [baseSource, setBaseSource] = useState<{ base: number; value: string } | null>(
     null
   );
-  const [codeStyle, setCodeStyle] = useState(CODE_STYLE_OPTIONS[0].value);
+  const [codeStyle, setCodeStyle] = useState<CodeStyleId>(CODE_STYLE_OPTIONS[0].value);
   const [latexImage, setLatexImage] = useState<string | null>(null);
   const [latexResult, setLatexResult] = useState("");
   const [qrSize, setQrSize] = useState(260);
@@ -896,7 +897,7 @@ export default function HomePage() {
                     <select
                       id="code-style"
                       value={codeStyle}
-                      onChange={(event) => setCodeStyle(event.target.value)}
+                      onChange={(event) => setCodeStyle(event.target.value as CodeStyleId)}
                       disabled={loading}
                       className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                     >
