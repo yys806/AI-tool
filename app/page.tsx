@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Sigma, Workflow } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Settings, Sigma, Workflow } from "lucide-react";
 
+import { ApiSettings } from "../components/api-settings";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -11,6 +12,8 @@ import { OutputPanel } from "../components/output-panel";
 
 type Mode = "math" | "diagram";
 
+const STORAGE_KEY = "siliconflow_api_key";
+
 const MODEL_OPTIONS = [
   { value: "deepseek-ai/DeepSeek-V3.2", label: "DeepSeek V3.2" },
   { value: "deepseek-ai/DeepSeek-V3", label: "DeepSeek V3" },
@@ -18,6 +21,17 @@ const MODEL_OPTIONS = [
 ] as const;
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
+
+const SYSTEM_PROMPTS: Record<Mode, string> = {
+  math:
+    "你是一名数学和编程专家。请解码用户提供的 LaTeX 公式。你必须仅返回一个原始的 JSON 对象，包含以下三个字段：" +
+    "1. explanation: 一段用中文通俗解释该公式数学含义的文字。" +
+    "2. symbols: 一个数组，解释公式中关键符号的含义 (例如 [{ symbol: \"m\", meaning: \"样本数量\" }])。" +
+    "3. code: 对应公式计算逻辑的 Python/NumPy/PyTorch 代码字符串。",
+  diagram:
+    "你是一名系统架构师。请将用户的描述转化为 Mermaid.js 的 flowchart 代码。仅返回代码块内容，" +
+    "以 graph TD 或适当的类型开头。不要包含 markdown 格式标记。",
+};
 
 type MathData = {
   explanation: string;
@@ -35,6 +49,28 @@ type ApiResponse = {
   data: MathData | DiagramData;
 };
 
+function stripCodeFences(text: string) {
+  const match = text.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+  return match ? match[1].trim() : text.trim();
+}
+
+function parseJsonObject(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1)) as unknown;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>("deepseek-ai/DeepSeek-V3.2");
@@ -43,6 +79,14 @@ export default function HomePage() {
   const [data, setData] = useState<MathData | DiagramData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored) setApiKey(stored);
+  }, []);
 
   const placeholder = useMemo(() => {
     return mode === "math"
@@ -70,14 +114,27 @@ export default function HomePage() {
       return;
     }
 
+    if (!apiKey) {
+      setError("请先在设置中填写 SiliconFlow API Key。");
+      setShowSettings(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch("https://api.siliconflow.cn/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, input: trimmed, model }),
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPTS[mode] },
+            { role: "user", content: trimmed },
+          ],
+          temperature: 0.2,
+        }),
       });
 
       if (!response.ok) {
@@ -96,11 +153,37 @@ export default function HomePage() {
         throw new Error(message);
       }
 
-      const payload = (await response.json()) as ApiResponse;
-      setData(payload.data);
-      setLastInput(payload.input);
+      const payload = (await response.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const rawContent = payload?.choices?.[0]?.message?.content;
+      if (!rawContent) {
+        throw new Error("模型没有返回内容。");
+      }
+
+      const content = stripCodeFences(rawContent);
+
+      if (mode === "math") {
+        const parsed = parseJsonObject(content);
+        if (!parsed || typeof parsed !== "object") {
+          throw new Error("模型未返回有效 JSON。");
+        }
+
+        const parsedData = parsed as MathData;
+        setData({
+          explanation: parsedData.explanation || "",
+          symbols: Array.isArray(parsedData.symbols) ? parsedData.symbols : [],
+          code: parsedData.code || "",
+        });
+      } else {
+        setData({ mermaid: content });
+      }
+
+      setLastInput(trimmed);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "请求失败，请稍后重试。");
+      const message =
+        err instanceof Error ? err.message : "请求失败，可能是网络或 CORS 限制。";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -114,8 +197,19 @@ export default function HomePage() {
       </div>
 
       <header className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-        <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-          AI Academic Cockpit
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+            AI Academic Cockpit
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 rounded-full"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings className="h-4 w-4" />
+            设置
+          </Button>
         </div>
         <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
           AI 学术驾驶舱
@@ -198,6 +292,18 @@ export default function HomePage() {
           data={data}
         />
       </main>
+
+      <ApiSettings
+        open={showSettings}
+        apiKey={apiKey}
+        onClose={() => setShowSettings(false)}
+        onSave={(value) => {
+          setApiKey(value);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(STORAGE_KEY, value);
+          }
+        }}
+      />
     </div>
   );
 }
