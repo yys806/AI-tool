@@ -15,8 +15,8 @@ const body = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "AI Academic Cockpit",
-  description: "AI 学术驾驶舱，提升论文阅读与系统设计效率。",
+  title: "Shen's tools",
+  description: "Shen's tools：AI 学术与工程效率工具集。",
 };
 
 export default function RootLayout({

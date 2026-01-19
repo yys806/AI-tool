@@ -25,6 +25,13 @@ const MODEL_OPTIONS = [
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
 
+const BASE_FIELDS = [
+  { base: 2, label: "二进制", helper: "示例：101011 或 0b101011" },
+  { base: 8, label: "八进制", helper: "示例：755 或 0o755" },
+  { base: 10, label: "十进制", helper: "示例：255" },
+  { base: 16, label: "十六进制", helper: "示例：FFEE 或 0xFFEE" },
+];
+
 const SYSTEM_PROMPTS: Record<AiMode, string> = {
   math:
     "你是一名数学和编程专家。请解码用户提供的 LaTeX 公式。你必须仅返回一个原始的 JSON 对象，包含以下三个字段：" +
@@ -44,12 +51,6 @@ type MathData = {
 
 type DiagramData = {
   mermaid: string;
-};
-
-type ApiResponse = {
-  mode: AiMode;
-  input: string;
-  data: MathData | DiagramData;
 };
 
 function stripCodeFences(text: string) {
@@ -85,8 +86,17 @@ export default function HomePage() {
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
   const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
-  const [fromBase, setFromBase] = useState(10);
-  const [toBase, setToBase] = useState(2);
+  const [baseInputs, setBaseInputs] = useState<Record<number, string>>({
+    2: "",
+    8: "",
+    10: "",
+    16: "",
+  });
+  const [customBase, setCustomBase] = useState(36);
+  const [customValue, setCustomValue] = useState("");
+  const [baseSource, setBaseSource] = useState<{ base: number; value: string } | null>(
+    null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -121,6 +131,61 @@ export default function HomePage() {
     setLoading(false);
   };
 
+  const applyBaseConversion = (value: string, fromBase: number) => {
+    const trimmed = value.trim();
+    setBaseSource({ base: fromBase, value });
+
+    if (!trimmed) {
+      setError(null);
+      setBaseResult(null);
+      if (fromBase === customBase) {
+        setCustomValue(value);
+      } else {
+        setBaseInputs((prev) => ({ ...prev, [fromBase]: value }));
+      }
+      return;
+    }
+
+    const { result, error: baseError } = convertBase(trimmed, fromBase, customBase);
+    if (baseError) {
+      setError(baseError);
+      setBaseResult(null);
+      if (fromBase === customBase) {
+        setCustomValue(value);
+      } else {
+        setBaseInputs((prev) => ({ ...prev, [fromBase]: value }));
+      }
+      return;
+    }
+
+    setError(null);
+    setBaseResult(result || null);
+
+    setBaseInputs((prev) => {
+      const next = { ...prev };
+      for (const field of BASE_FIELDS) {
+        const item = result?.all.find((entry) => entry.base === field.base);
+        if (item) {
+          next[field.base] = item.value;
+        }
+      }
+      return next;
+    });
+
+    const customItem = result?.all.find((entry) => entry.base === customBase);
+    if (customItem) {
+      setCustomValue(customItem.value);
+    }
+    setLastInput(trimmed);
+  };
+
+  useEffect(() => {
+    if (!baseSource) return;
+    if (baseSource.value.trim()) {
+      applyBaseConversion(baseSource.value, baseSource.base);
+    }
+  }, [customBase]);
+
   const handleSubmit = async () => {
     const trimmed = input.trim();
     if (!trimmed) {
@@ -129,15 +194,6 @@ export default function HomePage() {
     }
 
     if (mode === "base") {
-      const { result, error: baseError } = convertBase(trimmed, fromBase, toBase);
-      if (baseError) {
-        setError(baseError);
-        setBaseResult(null);
-        return;
-      }
-      setError(null);
-      setBaseResult(result || null);
-      setLastInput(trimmed);
       return;
     }
 
@@ -230,7 +286,7 @@ export default function HomePage() {
       <header className="mx-auto flex w-full max-w-6xl flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-            AI Academic Cockpit
+            Shen's tools
           </div>
           <Button
             type="button"
@@ -243,10 +299,10 @@ export default function HomePage() {
           </Button>
         </div>
         <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
-          AI 学术驾驶舱
+          Shen's tools
         </h1>
         <p className="max-w-2xl text-sm text-[color:var(--muted)] sm:text-base">
-          在一个界面内完成公式解码与架构绘图，把阅读论文和项目设计变成更高效的闭环。
+          集成公式解码、架构绘图与进制转换的轻量工具集，帮助你更快完成学习与开发任务。
         </p>
       </header>
 
@@ -315,63 +371,56 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {BASE_FIELDS.map((field) => (
+                    <div key={`base-input-${field.base}`} className="space-y-2">
+                      <label
+                        htmlFor={`base-${field.base}`}
+                        className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                      >
+                        {field.label} ({field.base} 进制)
+                      </label>
+                      <input
+                        id={`base-${field.base}`}
+                        type="text"
+                        value={baseInputs[field.base]}
+                        onChange={(event) =>
+                          applyBaseConversion(event.target.value, field.base)
+                        }
+                        placeholder={field.helper}
+                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                      />
+                    </div>
+                  ))}
                   <div className="space-y-2">
                     <label
-                      htmlFor="from-base"
+                      htmlFor="custom-base"
                       className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
                     >
-                      输入进制
+                      自定义进制
                     </label>
-                    <input
-                      id="from-base"
-                      type="number"
-                      min={2}
-                      max={36}
-                      value={fromBase}
-                      onChange={(event) => setFromBase(Number(event.target.value))}
-                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                    />
-                  </div>
-                  <div className="flex items-end justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => {
-                        setFromBase(toBase);
-                        setToBase(fromBase);
-                      }}
-                    >
-                      <ArrowLeftRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="to-base"
-                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-                    >
-                      输出进制
-                    </label>
-                    <input
-                      id="to-base"
-                      type="number"
-                      min={2}
-                      max={36}
-                      value={toBase}
-                      onChange={(event) => setToBase(Number(event.target.value))}
-                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                    />
+                    <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
+                      <input
+                        id="custom-base"
+                        type="number"
+                        min={2}
+                        max={36}
+                        value={customBase}
+                        onChange={(event) => setCustomBase(Number(event.target.value))}
+                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                      />
+                      <input
+                        type="text"
+                        value={customValue}
+                        onChange={(event) =>
+                          applyBaseConversion(event.target.value, customBase)
+                        }
+                        placeholder={`示例：基于 ${customBase} 进制输入`}
+                        className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                      />
+                    </div>
                   </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder={placeholder}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                />
               </>
             )}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -380,11 +429,17 @@ export default function HomePage() {
                   ? "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。"
                   : mode === "diagram"
                   ? "支持条件、分支与循环的流程描述。"
-                  : "支持 2-36 进制，可输入 0b/0o/0x 前缀。"}
+                  : "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。"}
               </span>
-              <Button onClick={handleSubmit} disabled={loading}>
-                {mode === "base" ? "转换" : actionLabel}
-              </Button>
+              {mode === "base" ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold text-[color:var(--muted)]">
+                  实时转换已开启
+                </span>
+              ) : (
+                <Button onClick={handleSubmit} disabled={loading}>
+                  {actionLabel}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
