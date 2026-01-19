@@ -152,65 +152,13 @@ function normalizeLatex(value: string) {
   return text.trim();
 }
 
-const PROMPT_MOCK_SAMPLE: PromptResult = {
-  title: "Python 爬虫编写专家",
-  markdown: `# Role
-你是一名 Prompt Engineering 专家，负责把简短需求转化为结构化 Prompt，指导模型编写可执行的 Python 爬虫。
-
-# Context
-- 用户原始需求：{{NEED}}
-- 目标：让模型输出一份可运行的 Python 爬虫示例，涵盖请求、解析与异常处理。
-- 方法论：采用 CRISP / LangGPT，将需求拆解为背景、约束、流程与产出。
-
-# Skills
-- 拆解目标站点结构，识别登录、Headers、Cookies 与常见反爬限制
-- 设计可重试、可节流的抓取策略，支持代理与超时
-- 解析 HTML/JSON（BeautifulSoup / lxml），抽取字段并清洗
-- 控制并发、延迟，遵守 robots.txt（在 Prompt 中提醒说明）
-- 输出模块化、可复用的代码，并记录日志与错误
-
-# Constraints
-- 输出 Markdown，包含可直接复制的代码块
-- 代码示例需声明依赖与运行命令（如 pip install requests beautifulsoup4）
-- 默认使用 requests + BeautifulSoup；若改用 httpx/Scrapy 需说明原因
-- 变量命名清晰，加入基础异常处理与重试逻辑
-
-# Workflow
-1) 明确目标站点、入口 URL 以及需要抓取的字段
-2) 设计请求参数（Headers/Cookies/代理）、超时与重试策略
-3) 发送请求，校验状态码与内容类型
-4) 解析 DOM/JSON，抽取并结构化保存数据
-5) 输出/持久化（CSV/JSON），附带日志
-6) 给出最小可运行示例与依赖安装指令`
-};
-
-const DEBUG_MOCK_SAMPLE: DebugResult = {
-  analysis:
-    "检测到 PyTorch 张量 reshape 时报错：当前张量总元素数与目标形状不一致，导致 shape mismatch。",
-  fix_code: `import torch
-
-x = torch.randn(30)  # size 30
-# 正确 reshape：确保元素总数一致，例如 5 x 6
-x_fixed = x.view(5, 6)
-print(x_fixed.shape)  # torch.Size([5, 6])`
-};
-
-function buildPromptMockResult(userInput: string): PromptResult {
-  const need = userInput.trim() || "帮我写一个 Python 爬虫";
-  return {
-    title: PROMPT_MOCK_SAMPLE.title,
-    markdown: PROMPT_MOCK_SAMPLE.markdown.replace("{{NEED}}", need),
-  };
-}
-
-function buildDebugMockResult(errorLog: string): DebugResult {
-  const snippet =
-    errorLog.trim() ||
-    "RuntimeError: shape '[4, 4]' is invalid for input of size 30 (PyTorch)";
-  return {
-    analysis: `${DEBUG_SYSTEM_PROMPT} 检测到的报错片段：「${snippet}」。${DEBUG_MOCK_SAMPLE.analysis}`,
-    fix_code: DEBUG_MOCK_SAMPLE.fix_code,
-  };
+function deriveTitleFromMarkdown(markdown: string) {
+  const lines = markdown.split("\n");
+  const heading = lines.find((line) => line.trim().startsWith("#"));
+  if (heading) {
+    return heading.replace(/^#+\s*/, "").trim() || "结构化 Prompt";
+  }
+  return "结构化 Prompt";
 }
 
 export default function HomePage() {
@@ -420,19 +368,6 @@ export default function HomePage() {
       return;
     }
 
-    // mock-only flows
-    if (mode === "prompt") {
-      setPromptResult(buildPromptMockResult(trimmed));
-      setLastInput(trimmed);
-      return;
-    }
-
-    if (mode === "debug") {
-      setDebugResult(buildDebugMockResult(trimmed));
-      setLastInput(trimmed);
-      return;
-    }
-
     const normalizedKey = normalizeApiKey(apiKey);
     if (!normalizedKey) {
       setError("请先在设置中填写 API Key。");
@@ -451,6 +386,10 @@ export default function HomePage() {
               CODE_STYLE_OPTIONS.find((option) => option.value === codeStyle)?.label ||
               codeStyle
             }。`
+          : mode === "prompt"
+          ? PROMPT_SYSTEM_PROMPT
+          : mode === "debug"
+          ? DEBUG_SYSTEM_PROMPT
           : SYSTEM_PROMPTS[mode];
 
       const requestModel = mode === "latex" ? visionModel : model;
@@ -534,6 +473,21 @@ export default function HomePage() {
         });
       } else if (mode === "latex") {
         setLatexResult(normalizeLatex(content));
+      } else if (mode === "prompt") {
+        setPromptResult({
+          title: deriveTitleFromMarkdown(content),
+          markdown: content,
+        });
+      } else if (mode === "debug") {
+        const parsed = parseJsonObject(content);
+        if (!parsed || typeof parsed !== "object") {
+          throw new Error("模型未返回有效 JSON。");
+        }
+        const parsedData = parsed as Partial<DebugResult>;
+        setDebugResult({
+          analysis: parsedData.analysis || "",
+          fix_code: parsedData.fix_code || "",
+        });
       } else {
         setData({ mermaid: content });
       }
@@ -1105,7 +1059,7 @@ export default function HomePage() {
           <Card className="glass animate-fade-up">
             <CardHeader>
               <CardTitle>生成的结构化 Prompt</CardTitle>
-              <CardDescription>以下内容为 mock 结果，展示结构化 Prompt 模版。</CardDescription>
+              <CardDescription>以下内容由模型实时生成，包含结构化 Prompt。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {promptResult ? (
@@ -1126,7 +1080,7 @@ export default function HomePage() {
           <Card className="glass animate-fade-up">
             <CardHeader>
               <CardTitle>报错分析</CardTitle>
-              <CardDescription>以下内容为 mock 结果，展示分析与修复片段。</CardDescription>
+              <CardDescription>以下内容由模型实时生成，包含分析与修复建议。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {debugResult ? (
