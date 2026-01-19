@@ -66,10 +66,7 @@ export function DiagramRenderer({ code }: DiagramRendererProps) {
           {error}
         </div>
       ) : null}
-      <div
-        ref={containerRef}
-        className="rounded-2xl border border-[var(--border)] bg-white/70 p-4"
-      />
+      <div ref={containerRef} className="glass rounded-2xl p-4" />
     </div>
   );
 }

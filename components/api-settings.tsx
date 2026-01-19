@@ -54,7 +54,7 @@ export function ApiSettings({ open, apiKey, onSave, onClose }: ApiSettingsProps)
               type={showKey ? "text" : "password"}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              className="h-11 w-full rounded-full border border-[var(--border)] bg-white/70 px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+              className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
               placeholder="请输入你的 API Key"
             />
             <Button

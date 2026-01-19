@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Settings, Sigma, Workflow } from "lucide-react";
+import { ArrowLeftRight, Settings, Sigma, Workflow } from "lucide-react";
 
 import { ApiSettings } from "../components/api-settings";
+import { BasePanel } from "../components/base-panel";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { OutputPanel } from "../components/output-panel";
+import { convertBase, type BaseConversion } from "../lib/base-convert";
 
-type Mode = "math" | "diagram";
+type AiMode = "math" | "diagram";
+type Mode = AiMode | "base";
 
 const STORAGE_KEY = "siliconflow_api_key";
 
@@ -22,7 +25,7 @@ const MODEL_OPTIONS = [
 
 type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
 
-const SYSTEM_PROMPTS: Record<Mode, string> = {
+const SYSTEM_PROMPTS: Record<AiMode, string> = {
   math:
     "你是一名数学和编程专家。请解码用户提供的 LaTeX 公式。你必须仅返回一个原始的 JSON 对象，包含以下三个字段：" +
     "1. explanation: 一段用中文通俗解释该公式数学含义的文字。" +
@@ -44,7 +47,7 @@ type DiagramData = {
 };
 
 type ApiResponse = {
-  mode: Mode;
+  mode: AiMode;
   input: string;
   data: MathData | DiagramData;
 };
@@ -81,6 +84,9 @@ export default function HomePage() {
   const [input, setInput] = useState("");
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
+  const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
+  const [fromBase, setFromBase] = useState(10);
+  const [toBase, setToBase] = useState(2);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -95,7 +101,9 @@ export default function HomePage() {
   const placeholder = useMemo(() => {
     return mode === "math"
       ? "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^{m} y^{(i)} \\log \\hat{y}^{(i)}"
-      : "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401。";
+      : mode === "diagram"
+      ? "例如：用户登录，如果 Token 有效则查询 DB，否则返回 401。"
+      : "例如：FFEE 或 0b101010";
   }, [mode]);
 
   const actionLabel = useMemo(() => {
@@ -103,18 +111,33 @@ export default function HomePage() {
   }, [loading, mode]);
 
   const handleModeChange = (value: string) => {
-    if (value !== "math" && value !== "diagram") return;
+    if (value !== "math" && value !== "diagram" && value !== "base") return;
     setMode(value);
     setInput("");
     setLastInput("");
     setData(null);
+    setBaseResult(null);
     setError(null);
+    setLoading(false);
   };
 
   const handleSubmit = async () => {
     const trimmed = input.trim();
     if (!trimmed) {
       setError("请输入内容后再生成。");
+      return;
+    }
+
+    if (mode === "base") {
+      const { result, error: baseError } = convertBase(trimmed, fromBase, toBase);
+      if (baseError) {
+        setError(baseError);
+        setBaseResult(null);
+        return;
+      }
+      setError(null);
+      setBaseResult(result || null);
+      setLastInput(trimmed);
       return;
     }
 
@@ -138,7 +161,7 @@ export default function HomePage() {
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: SYSTEM_PROMPTS[mode] },
+            { role: "system", content: SYSTEM_PROMPTS[mode as AiMode] },
             { role: "user", content: trimmed },
           ],
           temperature: 0.2,
@@ -238,6 +261,10 @@ export default function HomePage() {
               <Workflow className="h-4 w-4" />
               📊 架构图生成器
             </TabsTrigger>
+            <TabsTrigger value="base">
+              <ArrowLeftRight className="h-4 w-4" />
+              🔢 进制转换
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </section>
@@ -245,60 +272,134 @@ export default function HomePage() {
       <main className="mx-auto mt-6 grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card className="glass animate-fade-up">
           <CardHeader>
-            <CardTitle>{mode === "math" ? "输入公式" : "输入描述"}</CardTitle>
+            <CardTitle>
+              {mode === "math" ? "输入公式" : mode === "diagram" ? "输入描述" : "输入数值"}
+            </CardTitle>
             <CardDescription>
               {mode === "math"
                 ? "粘贴 LaTeX 公式，我们会返回中文解释与代码实现。"
-                : "用自然语言描述流程，我们会生成 Mermaid 流程图。"}
+                : mode === "diagram"
+                ? "用自然语言描述流程，我们会生成 Mermaid 流程图。"
+                : "设置输入/输出进制，完成任意进制之间的转换。"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label
-                htmlFor="model"
-                className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-              >
-                模型选择
-              </label>
-              <select
-                id="model"
-                value={model}
-                onChange={(event) => setModel(event.target.value as ModelId)}
-                disabled={loading}
-                className="h-11 w-full rounded-full border border-[var(--border)] bg-white/70 px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-              >
-                {MODEL_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.value})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Textarea
-              placeholder={placeholder}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-            />
+            {mode !== "base" ? (
+              <>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="model"
+                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                  >
+                    模型选择
+                  </label>
+                  <select
+                    id="model"
+                    value={model}
+                    onChange={(event) => setModel(event.target.value as ModelId)}
+                    disabled={loading}
+                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                  >
+                    {MODEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.value})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Textarea
+                  placeholder={placeholder}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                />
+              </>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="from-base"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      输入进制
+                    </label>
+                    <input
+                      id="from-base"
+                      type="number"
+                      min={2}
+                      max={36}
+                      value={fromBase}
+                      onChange={(event) => setFromBase(Number(event.target.value))}
+                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
+                  </div>
+                  <div className="flex items-end justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => {
+                        setFromBase(toBase);
+                        setToBase(fromBase);
+                      }}
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="to-base"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      输出进制
+                    </label>
+                    <input
+                      id="to-base"
+                      type="number"
+                      min={2}
+                      max={36}
+                      value={toBase}
+                      onChange={(event) => setToBase(Number(event.target.value))}
+                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder={placeholder}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                />
+              </>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-[color:var(--muted)]">
                 {mode === "math"
                   ? "支持 LaTeX 公式，推荐使用 \\frac、\\sum 等结构。"
-                  : "支持条件、分支与循环的流程描述。"}
+                  : mode === "diagram"
+                  ? "支持条件、分支与循环的流程描述。"
+                  : "支持 2-36 进制，可输入 0b/0o/0x 前缀。"}
               </span>
               <Button onClick={handleSubmit} disabled={loading}>
-                {actionLabel}
+                {mode === "base" ? "转换" : actionLabel}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <OutputPanel
-          mode={mode}
-          input={lastInput || input}
-          loading={loading}
-          error={error}
-          data={data}
-        />
+        {mode === "base" ? (
+          <BasePanel result={baseResult} error={error} />
+        ) : (
+          <OutputPanel
+            mode={mode as AiMode}
+            input={lastInput || input}
+            loading={loading}
+            error={error}
+            data={data}
+          />
+        )}
       </main>
 
       <ApiSettings

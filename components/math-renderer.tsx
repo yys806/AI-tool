@@ -19,7 +19,7 @@ type MathRendererProps = {
 export function MathRenderer({ latex, explanation, symbols, code }: MathRendererProps) {
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-[var(--border)] bg-white/70 p-4">
+      <div className="glass rounded-2xl p-4">
         <BlockMath math={latex} />
       </div>
 
@@ -34,7 +34,7 @@ export function MathRenderer({ latex, explanation, symbols, code }: MathRenderer
           {symbols.map((item) => (
             <div
               key={`${item.symbol}-${item.meaning}`}
-              className="rounded-2xl border border-[var(--border)] bg-white/70 p-3 text-sm"
+              className="glass rounded-2xl p-3 text-sm"
             >
               <div className="font-semibold">{item.symbol}</div>
               <div className="text-[color:var(--muted)]">{item.meaning}</div>
@@ -48,9 +48,11 @@ export function MathRenderer({ latex, explanation, symbols, code }: MathRenderer
           <h4 className="text-sm font-semibold text-[color:var(--muted)]">Python/PyTorch</h4>
           <CopyButton value={code} />
         </div>
-        <pre className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[#101827] p-4 text-xs text-white">
-          <code>{code}</code>
-        </pre>
+        <div className="glass rounded-2xl">
+          <pre className="overflow-x-auto rounded-2xl bg-[#101827] p-4 text-xs text-white">
+            <code>{code}</code>
+          </pre>
+        </div>
       </section>
     </div>
   );

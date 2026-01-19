@@ -58,7 +58,7 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
         ) : null}
 
         {!loading && !error && !data ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-white/60 p-6 text-sm text-[color:var(--muted)]">
+          <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
             还没有生成内容，先在左侧输入吧。
           </div>
         ) : null}
