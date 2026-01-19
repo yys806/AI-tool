@@ -71,6 +71,10 @@ function parseJsonObject(text: string) {
   }
 }
 
+function normalizeApiKey(value: string) {
+  return value.trim().replace(/^Bearer\s+/i, "");
+}
+
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>("deepseek-ai/DeepSeek-V3.2");
@@ -114,7 +118,8 @@ export default function HomePage() {
       return;
     }
 
-    if (!apiKey) {
+    const normalizedKey = normalizeApiKey(apiKey);
+    if (!normalizedKey) {
       setError("请先在设置中填写 SiliconFlow API Key。");
       setShowSettings(true);
       return;
@@ -126,7 +131,10 @@ export default function HomePage() {
     try {
       const response = await fetch("https://api.siliconflow.cn/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${normalizedKey}`,
+        },
         body: JSON.stringify({
           model,
           messages: [
