@@ -814,7 +814,9 @@ export default function HomePage() {
                   <select
                     id="vision-model"
                     value={visionModel}
-                    onChange={(event) => setVisionModel(event.target.value)}
+                    onChange={(event) =>
+                      setVisionModel(event.target.value as VisionModelId)
+                    }
                     disabled={loading}
                     className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                   >
