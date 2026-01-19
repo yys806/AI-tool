@@ -33,6 +33,10 @@ type Mode = AiMode | "base" | "qr" | "prompt" | "debug";
 
 const STORAGE_KEY = "siliconflow_api_key";
 const API_BASE_URL = "https://api.siliconflow.cn/v1";
+const PROMPT_SYSTEM_PROMPT =
+  "你是一名 Prompt Engineering 专家。将用户的简单指令转换为结构清晰的 Markdown 格式 Prompt。必须包含：# Role, # Context, # Skills, # Constraints, # Workflow。";
+const DEBUG_SYSTEM_PROMPT =
+  "你是一名代码调试专家。分析提供的报错信息。返回一个 JSON 对象，包含：analysis: 用通俗语言解释错误原因；fix_code: 修复后的代码片段。";
 
 const MODEL_OPTIONS = [
   { value: "deepseek-ai/DeepSeek-V3.2", label: "DeepSeek V3.2" },
@@ -146,6 +150,67 @@ function normalizeLatex(value: string) {
     text = text.slice(1, -1);
   }
   return text.trim();
+}
+
+const PROMPT_MOCK_SAMPLE: PromptResult = {
+  title: "Python 爬虫编写专家",
+  markdown: `# Role
+你是一名 Prompt Engineering 专家，负责把简短需求转化为结构化 Prompt，指导模型编写可执行的 Python 爬虫。
+
+# Context
+- 用户原始需求：{{NEED}}
+- 目标：让模型输出一份可运行的 Python 爬虫示例，涵盖请求、解析与异常处理。
+- 方法论：采用 CRISP / LangGPT，将需求拆解为背景、约束、流程与产出。
+
+# Skills
+- 拆解目标站点结构，识别登录、Headers、Cookies 与常见反爬限制
+- 设计可重试、可节流的抓取策略，支持代理与超时
+- 解析 HTML/JSON（BeautifulSoup / lxml），抽取字段并清洗
+- 控制并发、延迟，遵守 robots.txt（在 Prompt 中提醒说明）
+- 输出模块化、可复用的代码，并记录日志与错误
+
+# Constraints
+- 输出 Markdown，包含可直接复制的代码块
+- 代码示例需声明依赖与运行命令（如 pip install requests beautifulsoup4）
+- 默认使用 requests + BeautifulSoup；若改用 httpx/Scrapy 需说明原因
+- 变量命名清晰，加入基础异常处理与重试逻辑
+
+# Workflow
+1) 明确目标站点、入口 URL 以及需要抓取的字段
+2) 设计请求参数（Headers/Cookies/代理）、超时与重试策略
+3) 发送请求，校验状态码与内容类型
+4) 解析 DOM/JSON，抽取并结构化保存数据
+5) 输出/持久化（CSV/JSON），附带日志
+6) 给出最小可运行示例与依赖安装指令`
+};
+
+const DEBUG_MOCK_SAMPLE: DebugResult = {
+  analysis:
+    "检测到 PyTorch 张量 reshape 时报错：当前张量总元素数与目标形状不一致，导致 shape mismatch。",
+  fix_code: `import torch
+
+x = torch.randn(30)  # size 30
+# 正确 reshape：确保元素总数一致，例如 5 x 6
+x_fixed = x.view(5, 6)
+print(x_fixed.shape)  # torch.Size([5, 6])`
+};
+
+function buildPromptMockResult(userInput: string): PromptResult {
+  const need = userInput.trim() || "帮我写一个 Python 爬虫";
+  return {
+    title: PROMPT_MOCK_SAMPLE.title,
+    markdown: PROMPT_MOCK_SAMPLE.markdown.replace("{{NEED}}", need),
+  };
+}
+
+function buildDebugMockResult(errorLog: string): DebugResult {
+  const snippet =
+    errorLog.trim() ||
+    "RuntimeError: shape '[4, 4]' is invalid for input of size 30 (PyTorch)";
+  return {
+    analysis: `${DEBUG_SYSTEM_PROMPT} 检测到的报错片段：「${snippet}」。${DEBUG_MOCK_SAMPLE.analysis}`,
+    fix_code: DEBUG_MOCK_SAMPLE.fix_code,
+  };
 }
 
 export default function HomePage() {
@@ -357,48 +422,13 @@ export default function HomePage() {
 
     // mock-only flows
     if (mode === "prompt") {
-      setPromptResult({
-        title: "Python 爬虫编写专家",
-        markdown: `# Role
-你是一名 Python 爬虫编写专家，精通 requests、httpx、BeautifulSoup、Scrapy，并熟悉反爬策略。
-
-# Context
-- 用户想要抓取目标站点的页面数据。
-- 需要兼顾稳定性、速率控制与异常处理。
-
-# Skills
-- 设计幂等的抓取与重试逻辑
-- 处理登录/Headers/Cookies 与常见反爬限制
-- 解析 HTML（BeautifulSoup / lxml）与 JSON API
-- 合理的延迟与并发控制
-- 代码模块化与日志记录
-
-# Constraints
-- 输出完整且可执行的 Python 代码示例
-- 代码需包含注释与基础异常处理
-- 避免过度并发，遵守 robots.txt（示例说明即可）
-- 使用标准库优先，第三方库需在开头列出
-
-# Workflow
-1) 明确目标站点与数据字段
-2) 构造请求（Headers、Cookies、重试、超时）
-3) 发送请求并检查状态码
-4) 解析内容（HTML/JSON），提取字段
-5) 存储/输出数据（CSV/JSON/打印）
-6) 添加日志与错误捕获
-7) 提供运行示例命令与依赖说明`,
-      });
+      setPromptResult(buildPromptMockResult(trimmed));
       setLastInput(trimmed);
       return;
     }
 
     if (mode === "debug") {
-      setDebugResult({
-        analysis:
-          "这是一个 PyTorch 张量维度不匹配导致的 shape 错误：你尝试把 size=30 的向量 reshape 成 [4,4]，需要保证元素总数一致。",
-        fix_code:
-          "```python\nimport torch\nx = torch.randn(30)  # size 30\n# 正确 reshape：保证元素总数一致，例如 5x6\nx_fixed = x.view(5, 6)\nprint(x_fixed.shape)  # torch.Size([5, 6])\n```",
-      });
+      setDebugResult(buildDebugMockResult(trimmed));
       setLastInput(trimmed);
       return;
     }
