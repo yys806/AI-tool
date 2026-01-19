@@ -19,8 +19,8 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>LaTeX ½á¹û</CardTitle>
-        <CardDescription>Ê¶±ğ½á¹ûÓë¿ÉÊÓ»¯Ô¤ÀÀ</CardDescription>
+        <CardTitle>LaTeX ç»“æœ</CardTitle>
+        <CardDescription>è¯†åˆ«ç»“æœä¸å¯è§†åŒ–é¢„è§ˆ</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {loading ? (
@@ -39,7 +39,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
 
         {!loading && !error && !image ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            ÉÏ´«¹«Ê½½ØÍ¼ºó¼´¿ÉÊ¶±ğ¡£
+            ä¸Šä¼ å…¬å¼æˆªå›¾åå³å¯è¯†åˆ«ã€‚
           </div>
         ) : null}
 
@@ -48,7 +48,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
             <div className="glass flex items-center justify-center rounded-2xl p-4">
               <img
                 src={image}
-                alt="¹«Ê½Í¼Æ¬Ô¤ÀÀ"
+                alt="å…¬å¼å›¾ç‰‡é¢„è§ˆ"
                 className="max-h-48 w-auto rounded-xl object-contain"
               />
             </div>
@@ -60,7 +60,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-[color:var(--muted)]">
-                    Markdown ¹«Ê½
+                    Markdown å…¬å¼
                   </h4>
                   <CopyButton value={markdownLatex} />
                 </div>
@@ -72,7 +72,7 @@ export function LatexPanel({ image, latex, error, loading }: LatexPanelProps) {
               </>
             ) : (
               <div className="text-sm text-[color:var(--muted)]">
-                µÈ´ıÊ¶±ğ½á¹û...
+                ç­‰å¾…è¯†åˆ«ç»“æœ...
               </div>
             )}
           </div>

@@ -37,9 +37,9 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
   return (
     <Card className="glass border border-[var(--border)]">
       <CardHeader>
-        <CardTitle>Éú³É½á¹û</CardTitle>
+        <CardTitle>ç”Ÿæˆç»“æœ</CardTitle>
         <CardDescription>
-          {isMath ? "¹«Ê½²ğ½âÓë¿ÉÖ´ĞĞ´úÂë" : "×Ô¶¯»¯¼Ü¹¹Á÷³ÌÍ¼"}
+          {isMath ? "å…¬å¼æ‹†è§£ä¸å¯æ‰§è¡Œä»£ç " : "è‡ªåŠ¨åŒ–æ¶æ„æµç¨‹å›¾"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -59,7 +59,7 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
 
         {!loading && !error && !data ? (
           <div className="glass rounded-2xl p-6 text-sm text-[color:var(--muted)]">
-            »¹Ã»ÓĞÉú³ÉÄÚÈİ£¬ÏÈÔÚ×ó²àÊäÈë°É¡£
+            è¿˜æ²¡æœ‰ç”Ÿæˆå†…å®¹ï¼Œå…ˆåœ¨å·¦ä¾§è¾“å…¥å§ã€‚
           </div>
         ) : null}
 
@@ -79,14 +79,14 @@ export function OutputPanel({ mode, input, loading, error, data }: OutputPanelPr
                     <Switch
                       checked={showMermaid}
                       onCheckedChange={setShowMermaid}
-                      aria-label="ÏÔÊ¾ Mermaid ´úÂë"
+                      aria-label="æ˜¾ç¤º Mermaid ä»£ç "
                     />
                     <span className="inline-flex items-center gap-2">
                       {showMermaid ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      {showMermaid ? "Òş²Ø Mermaid ´úÂë" : "ÏÔÊ¾ Mermaid ´úÂë"}
+                      {showMermaid ? "éšè— Mermaid ä»£ç " : "æ˜¾ç¤º Mermaid ä»£ç "}
                     </span>
                   </div>
-                  <CopyButton value={(data as DiagramData).mermaid} label="¸´ÖÆ´úÂë" />
+                  <CopyButton value={(data as DiagramData).mermaid} label="å¤åˆ¶ä»£ç " />
                 </div>
 
                 {showMermaid ? (
