@@ -53,6 +53,11 @@ const SYSTEM_PROMPTS: Record<AiMode, string> = {
     "limitations: 字符串，概括局限性或可能风险。",
 };
 
+const PDF_WORKER_URL =
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js";
+
+const MAX_PAPER_CHARS = 12000;
+
 type MathData = {
   explanation: string;
   symbols: { symbol: string; meaning: string }[];
@@ -89,6 +94,26 @@ function normalizeApiKey(value: string) {
   return value.trim().replace(/^Bearer\s+/i, "");
 }
 
+async function extractPdfText(file: File) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
+  }
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+  let text = "";
+
+  for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
+    const page = await pdf.getPage(pageIndex);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item) => item.str).join(" ");
+    text += `${pageText}\n`;
+  }
+
+  return text.trim();
+}
+
 export default function HomePage() {
   const [mode, setMode] = useState<Mode>("math");
   const [model, setModel] = useState<ModelId>("deepseek-ai/DeepSeek-V3.2");
@@ -97,6 +122,8 @@ export default function HomePage() {
   const [lastInput, setLastInput] = useState("");
   const [data, setData] = useState<MathData | DiagramData | null>(null);
   const [paperData, setPaperData] = useState<PaperData | null>(null);
+  const [paperParsing, setPaperParsing] = useState(false);
+  const [paperFileName, setPaperFileName] = useState<string | null>(null);
   const [baseResult, setBaseResult] = useState<BaseConversion | null>(null);
   const [baseInputs, setBaseInputs] = useState<Record<number, string>>({
     2: "",
@@ -161,6 +188,8 @@ export default function HomePage() {
     setMode(value);
     setInput("");
     setQrInput("");
+    setPaperFileName(null);
+    setPaperParsing(false);
     setLastInput("");
     setData(null);
     setPaperData(null);
@@ -224,10 +253,32 @@ export default function HomePage() {
     }
   }, [customBase]);
 
+  const handlePdfChange = async (file: File) => {
+    setPaperParsing(true);
+    setPaperFileName(file.name);
+    setError(null);
+
+    try {
+      const rawText = await extractPdfText(file);
+      const cleaned = rawText.replace(/\s+/g, " ").trim();
+      const limited = cleaned.slice(0, MAX_PAPER_CHARS);
+      setInput(limited);
+      setPaperData(null);
+      setLastInput("");
+      if (!limited) {
+        setError("PDF 解析为空，请检查文件内容。");
+      }
+    } catch {
+      setError("PDF 解析失败，请确认文件未加密且格式正确。");
+    } finally {
+      setPaperParsing(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const trimmed = input.trim();
     if (!trimmed) {
-      setError("请输入内容后再生成。");
+      setError(mode === "paper" ? "请先粘贴摘要或上传 PDF。" : "请输入内容后再生成。");
       return;
     }
 
@@ -436,6 +487,35 @@ export default function HomePage() {
                     ))}
                   </select>
                 </div>
+                {mode === "paper" ? (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="paper-file"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      上传 PDF（可选）
+                    </label>
+                    <input
+                      id="paper-file"
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        handlePdfChange(file);
+                        event.currentTarget.value = "";
+                      }}
+                      className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] file:mr-4 file:rounded-full file:border-0 file:bg-[color:var(--accent)] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                    />
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-[color:var(--muted)]">
+                      {paperFileName ? <span>已选择：{paperFileName}</span> : null}
+                      {paperParsing ? <span>PDF 解析中...</span> : null}
+                      {input.length ? (
+                        <span>当前输入约 {Math.round(input.length / 100) / 10}k 字</span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
                 <Textarea
                   placeholder={placeholder}
                   value={input}
@@ -762,7 +842,7 @@ export default function HomePage() {
         {mode === "base" ? (
           <BasePanel result={baseResult} error={error} />
         ) : mode === "paper" ? (
-          <PaperPanel data={paperData} error={error} loading={loading} />
+          <PaperPanel data={paperData} error={error} loading={loading || paperParsing} />
         ) : mode === "qr" ? (
           <QrPanel
             data={qrInput}
