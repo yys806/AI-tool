@@ -24,14 +24,14 @@ export function MathRenderer({ latex, explanation, symbols, code }: MathRenderer
       </div>
 
       <section className="space-y-2">
-        <h4 className="text-sm font-semibold text-[color:var(--muted)]">Í¨Ë×½âÊÍ</h4>
+        <h4 className="text-sm font-semibold text-[color:var(--muted)]">é€šä¿—è§£é‡Š</h4>
         <div className="glass rounded-2xl p-3">
           <p className="text-sm leading-relaxed text-[color:var(--ink)]">{explanation}</p>
         </div>
       </section>
 
       <section className="space-y-2">
-        <h4 className="text-sm font-semibold text-[color:var(--muted)]">·ûºÅ¶ÔÕÕ</h4>
+        <h4 className="text-sm font-semibold text-[color:var(--muted)]">ç¬¦å·å¯¹ç…§</h4>
         <div className="grid gap-2 md:grid-cols-2">
           {symbols.map((item) => (
             <div key={`${item.symbol}-${item.meaning}`} className="glass rounded-2xl p-3 text-sm">
