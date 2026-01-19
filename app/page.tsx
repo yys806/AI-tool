@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   ArrowLeftRight,
   Code,
   Home,
@@ -10,6 +11,7 @@ import {
   Settings,
   Sigma,
   Workflow,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,7 +29,7 @@ import type { QrCornerDotType, QrCornerSquareType, QrDotsType } from "../compone
 
 type AiMode = "math" | "diagram" | "code" | "latex";
 
-type Mode = AiMode | "base" | "qr";
+type Mode = AiMode | "base" | "qr" | "prompt" | "debug";
 
 const STORAGE_KEY = "siliconflow_api_key";
 const API_BASE_URL = "https://api.siliconflow.cn/v1";
@@ -54,6 +56,8 @@ const NAV_ITEMS: { value: Mode; label: string; icon: LucideIcon; hint: string }[
   { value: "diagram", label: "架构图生成器", icon: Workflow, hint: "流程描述转 Mermaid" },
   { value: "code", label: "代码解析", icon: Code, hint: "代码解释与伪代码生成" },
   { value: "latex", label: "图转 LaTeX", icon: Image, hint: "截图识别为 LaTeX" },
+  { value: "prompt", label: "提示词炼丹炉", icon: Wand2, hint: "结构化 Prompt 生成" },
+  { value: "debug", label: "报错显微镜", icon: AlertCircle, hint: "错误分析与修复建议" },
   { value: "base", label: "进制转换", icon: ArrowLeftRight, hint: "多进制实时转换" },
   { value: "qr", label: "二维码生成器", icon: QrCode, hint: "自定义样式二维码" },
 ];
@@ -96,6 +100,16 @@ type MathData = {
 
 type DiagramData = {
   mermaid: string;
+};
+
+type PromptResult = {
+  title: string;
+  markdown: string;
+};
+
+type DebugResult = {
+  analysis: string;
+  fix_code: string;
 };
 
 function stripCodeFences(text: string) {
@@ -160,6 +174,8 @@ export default function HomePage() {
   const [codeStyle, setCodeStyle] = useState<CodeStyleId>(CODE_STYLE_OPTIONS[0].value);
   const [latexImage, setLatexImage] = useState<string | null>(null);
   const [latexResult, setLatexResult] = useState("");
+  const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
+  const [debugResult, setDebugResult] = useState<DebugResult | null>(null);
   const [qrSize, setQrSize] = useState(260);
   const [qrMargin, setQrMargin] = useState(8);
   const [qrDotsType, setQrDotsType] = useState<QrDotsType>("rounded");
@@ -199,6 +215,12 @@ export default function HomePage() {
     if (mode === "code") {
       return "粘贴需要解释的代码片段，例如 Python/JS/Java 逻辑。";
     }
+    if (mode === "prompt") {
+      return "例如：帮我写一个 Python 爬虫";
+    }
+    if (mode === "debug") {
+      return "例如：RuntimeError: shape '[4, 4]' is invalid for input of size 30";
+    }
     return "";
   }, [mode]);
 
@@ -207,6 +229,8 @@ export default function HomePage() {
     if (mode === "diagram") return "生成图表";
     if (mode === "code") return "解析代码";
     if (mode === "latex") return "识别公式";
+    if (mode === "prompt") return "生成 Prompt";
+    if (mode === "debug") return "分析报错";
     return "生成";
   }, [mode]);
 
@@ -226,6 +250,12 @@ export default function HomePage() {
     if (mode === "base") {
       return "支持 2-36 进制，可输入 0b/0o/0x 前缀，实时更新。";
     }
+    if (mode === "prompt") {
+      return "模拟 Prompt 工程专家，将你的简短需求扩写为结构化 Prompt。";
+    }
+    if (mode === "debug") {
+      return "粘贴报错或堆栈，我们模拟分析并给出修复代码片段。";
+    }
     return "支持文字与链接，自动实时生成二维码。";
   }, [mode]);
 
@@ -239,6 +269,8 @@ export default function HomePage() {
     setData(null);
     setCodeResult(null);
     setLatexResult("");
+    setPromptResult(null);
+    setDebugResult(null);
   };
 
   const applyBaseConversion = (value: string, fromBase: number) => {
@@ -320,6 +352,54 @@ export default function HomePage() {
       }
     } else if (!trimmed) {
       setError("请先输入内容。");
+      return;
+    }
+
+    // mock-only flows
+    if (mode === "prompt") {
+      setPromptResult({
+        title: "Python 爬虫编写专家",
+        markdown: `# Role
+你是一名 Python 爬虫编写专家，精通 requests、httpx、BeautifulSoup、Scrapy，并熟悉反爬策略。
+
+# Context
+- 用户想要抓取目标站点的页面数据。
+- 需要兼顾稳定性、速率控制与异常处理。
+
+# Skills
+- 设计幂等的抓取与重试逻辑
+- 处理登录/Headers/Cookies 与常见反爬限制
+- 解析 HTML（BeautifulSoup / lxml）与 JSON API
+- 合理的延迟与并发控制
+- 代码模块化与日志记录
+
+# Constraints
+- 输出完整且可执行的 Python 代码示例
+- 代码需包含注释与基础异常处理
+- 避免过度并发，遵守 robots.txt（示例说明即可）
+- 使用标准库优先，第三方库需在开头列出
+
+# Workflow
+1) 明确目标站点与数据字段
+2) 构造请求（Headers、Cookies、重试、超时）
+3) 发送请求并检查状态码
+4) 解析内容（HTML/JSON），提取字段
+5) 存储/输出数据（CSV/JSON/打印）
+6) 添加日志与错误捕获
+7) 提供运行示例命令与依赖说明`,
+      });
+      setLastInput(trimmed);
+      return;
+    }
+
+    if (mode === "debug") {
+      setDebugResult({
+        analysis:
+          "这是一个 PyTorch 张量维度不匹配导致的 shape 错误：你尝试把 size=30 的向量 reshape 成 [4,4]，需要保证元素总数一致。",
+        fix_code:
+          "```python\nimport torch\nx = torch.randn(30)  # size 30\n# 正确 reshape：保证元素总数一致，例如 5x6\nx_fixed = x.view(5, 6)\nprint(x_fixed.shape)  # torch.Size([5, 6])\n```",
+      });
+      setLastInput(trimmed);
       return;
     }
 
@@ -898,27 +978,29 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <div className="space-y-2">
-                  <label
-                    htmlFor="model"
-                    className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
-                  >
-                    模型选择
-                  </label>
-                  <select
-                    id="model"
-                    value={model}
-                    onChange={(event) => setModel(event.target.value as ModelId)}
-                    disabled={loading}
-                    className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
-                  >
-                    {MODEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.value})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {mode === "prompt" || mode === "debug" ? null : (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="model"
+                      className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]"
+                    >
+                      模型选择
+                    </label>
+                    <select
+                      id="model"
+                      value={model}
+                      onChange={(event) => setModel(event.target.value as ModelId)}
+                      disabled={loading}
+                      className="glass h-11 w-full rounded-full px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                    >
+                      {MODEL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} ({option.value})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {mode === "code" ? (
                   <div className="space-y-2">
                     <label
@@ -946,7 +1028,7 @@ export default function HomePage() {
                   placeholder={placeholder}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  className={mode === "code" ? "font-mono" : undefined}
+                  className={mode === "code" || mode === "debug" ? "font-mono" : undefined}
                 />
               </>
             )}
@@ -989,6 +1071,49 @@ export default function HomePage() {
           <CodePanel data={codeResult} error={error} loading={loading} />
         ) : mode === "latex" ? (
           <LatexPanel image={latexImage} latex={latexResult} error={error} loading={loading} />
+        ) : mode === "prompt" ? (
+          <Card className="glass animate-fade-up">
+            <CardHeader>
+              <CardTitle>生成的结构化 Prompt</CardTitle>
+              <CardDescription>以下内容为 mock 结果，展示结构化 Prompt 模版。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {promptResult ? (
+                <>
+                  <div className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-[color:var(--ink)]">
+                    {promptResult.title}
+                  </div>
+                  <pre className="whitespace-pre-wrap rounded-xl bg-white/60 p-4 text-sm text-[color:var(--ink)]">
+                    {promptResult.markdown}
+                  </pre>
+                </>
+              ) : (
+                <div className="text-sm text-[color:var(--muted)]">请先输入需求并点击“生成 Prompt”。</div>
+              )}
+            </CardContent>
+          </Card>
+        ) : mode === "debug" ? (
+          <Card className="glass animate-fade-up">
+            <CardHeader>
+              <CardTitle>报错分析</CardTitle>
+              <CardDescription>以下内容为 mock 结果，展示分析与修复片段。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {debugResult ? (
+                <>
+                  <div className="rounded-xl bg-white/70 p-3 text-sm text-[color:var(--ink)]">
+                    <strong>分析：</strong> {debugResult.analysis}
+                  </div>
+                  <pre className="whitespace-pre-wrap rounded-xl bg-white/60 p-4 text-sm text-[color:var(--ink)]">
+                    {debugResult.fix_code}
+                  </pre>
+                </>
+              ) : (
+                <div className="text-sm text-[color:var(--muted)]">请粘贴报错并点击“分析报错”。</div>
+              )}
+              {error ? <div className="text-sm text-red-600">{error}</div> : null}
+            </CardContent>
+          </Card>
         ) : (
           <OutputPanel
             mode={mode === "diagram" ? "diagram" : "math"}
