@@ -24,18 +24,34 @@ export function ApiSettings({ open, apiKey, onSave, onClose }: ApiSettingsProps)
     }
   }, [apiKey, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="glass relative z-10 w-full max-w-lg rounded-3xl p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="api-settings-title"
+        className="glass relative z-10 w-full max-w-lg rounded-3xl p-6"
+      >
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">API Key 设置</h3>
+          <h3 id="api-settings-title" className="text-lg font-semibold">API Key 设置</h3>
           <p className="text-sm text-[color:var(--muted)]">
             Key 仅保存在浏览器本地存储，前端直接调用 SiliconFlow 接口。
           </p>

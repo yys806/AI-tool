@@ -7,6 +7,7 @@ import {
   Code,
   Home,
   Image,
+  Loader2,
   QrCode,
   Settings,
   Sigma,
@@ -583,7 +584,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative min-h-screen px-6 py-10">
+    <div className="relative min-h-screen px-4 py-8 sm:px-6 sm:py-10">
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-24 right-10 h-64 w-64 rounded-full bg-[color:var(--accent)]/20 blur-[120px]" />
         <div className="absolute bottom-8 left-10 h-72 w-72 rounded-full bg-[color:var(--accent-2)]/20 blur-[140px]" />
@@ -1073,8 +1074,15 @@ export default function HomePage() {
                   {mode === "base" ? "实时转换已开启" : "实时生成已开启"}
                 </span>
               ) : (
-                <Button onClick={handleSubmit} disabled={loading}>
-                  {actionLabel}
+                <Button onClick={handleSubmit} disabled={loading} aria-busy={loading}>
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      处理中…
+                    </span>
+                  ) : (
+                    actionLabel
+                  )}
                 </Button>
               )}
             </div>
@@ -1131,7 +1139,7 @@ export default function HomePage() {
                 <div className="text-sm text-[color:var(--muted)]">请先输入需求并点击“生成 Prompt”。</div>
               )}
               {!loading && error ? (
-                <div className="text-sm text-red-600">{error}</div>
+                <div role="alert" className="text-sm text-red-600">{error}</div>
               ) : null}
             </CardContent>
           </Card>
@@ -1160,7 +1168,9 @@ export default function HomePage() {
               ) : (
                 <div className="text-sm text-[color:var(--muted)]">请粘贴报错并点击“分析报错”。</div>
               )}
-              {!loading && error ? <div className="text-sm text-red-600">{error}</div> : null}
+              {!loading && error ? (
+                <div role="alert" className="text-sm text-red-600">{error}</div>
+              ) : null}
             </CardContent>
           </Card>
         ) : (
