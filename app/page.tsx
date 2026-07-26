@@ -593,7 +593,7 @@ export default function HomePage() {
       <header className="mx-auto flex w-full max-w-6xl flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-            Shen's tools
+            Shen&apos;s tools
           </div>
           <div className="flex items-center gap-2">
             {!isHome ? (
@@ -618,7 +618,7 @@ export default function HomePage() {
             </Button>
           </div>
         </div>
-        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Shen's tools</h1>
+        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Shen&apos;s tools</h1>
         <p className="max-w-2xl text-sm text-[color:var(--muted)] sm:text-base">
           集成公式解码、架构绘图、代码解析、图转 LaTeX、进制转换与二维码生成的轻量工具集。
         </p>

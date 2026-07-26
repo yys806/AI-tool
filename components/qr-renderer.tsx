@@ -84,6 +84,8 @@ export function QrRenderer({
       containerRef.current.innerHTML = "";
       qrRef.current.append(containerRef.current);
     }
+    // 仅在挂载时初始化一次；后续所有属性变化由下方 update 副作用统一处理
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
