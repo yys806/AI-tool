@@ -251,11 +251,6 @@ export default function HomePage() {
     if (stored) setApiKey(stored);
   }, []);
 
-  useEffect(() => {
-    if (!baseSource) return;
-    applyBaseConversion(baseSource.value, baseSource.base);
-  }, [customBase]);
-
   const placeholder = useMemo(() => {
     if (mode === "math") {
       return "例如：J(\\theta) = -\\frac{1}{m} \\sum_{i=1}^m y^{(i)} \\log \\hat{y}^{(i)}";
@@ -324,13 +319,17 @@ export default function HomePage() {
     setDebugResult(null);
   };
 
-  const applyBaseConversion = (value: string, fromBase: number) => {
+  const applyBaseConversion = (
+    value: string,
+    fromBase: number,
+    targetBase: number = customBase
+  ) => {
     setBaseSource({ base: fromBase, value });
 
     if (!value.trim()) {
       setBaseResult(null);
       setBaseError(null);
-      if (fromBase === customBase) {
+      if (fromBase === targetBase) {
         setCustomValue(value);
       } else {
         setBaseInputs((prev) => ({ ...prev, [fromBase]: value }));
@@ -338,13 +337,13 @@ export default function HomePage() {
       return;
     }
 
-    const mainTarget = fromBase === customBase ? 10 : customBase;
+    const mainTarget = fromBase === targetBase ? 10 : targetBase;
     const mainConversion = convertBase(value, fromBase, mainTarget);
 
     if (!mainConversion.result || mainConversion.error) {
       setBaseResult(null);
       setBaseError(mainConversion.error || "转换失败，请检查输入。");
-      if (fromBase === customBase) {
+      if (fromBase === targetBase) {
         setCustomValue(value);
       } else {
         setBaseInputs((prev) => ({ ...prev, [fromBase]: value }));
@@ -355,10 +354,10 @@ export default function HomePage() {
     const outputs = new Map<number, string>();
     mainConversion.result.all.forEach((item) => outputs.set(item.base, item.value));
 
-    if (fromBase === customBase && !outputs.has(customBase)) {
-      const customConversion = convertBase(value, fromBase, customBase);
+    if (fromBase === targetBase && !outputs.has(targetBase)) {
+      const customConversion = convertBase(value, fromBase, targetBase);
       if (customConversion.result) {
-        outputs.set(customBase, customConversion.result.output);
+        outputs.set(targetBase, customConversion.result.output);
       }
     }
 
@@ -368,9 +367,9 @@ export default function HomePage() {
       10: outputs.get(10) ?? "",
       16: outputs.get(16) ?? "",
     });
-    setCustomValue(outputs.get(customBase) ?? "");
+    setCustomValue(outputs.get(targetBase) ?? "");
 
-    const allBases = [2, 8, 10, 16, customBase].filter(
+    const allBases = [2, 8, 10, 16, targetBase].filter(
       (base, index, arr) => arr.indexOf(base) === index
     );
 
@@ -384,6 +383,12 @@ export default function HomePage() {
       })),
     });
     setBaseError(null);
+  };
+
+  const handleCustomBaseChange = (nextBase: number) => {
+    setCustomBase(nextBase);
+    if (!baseSource) return;
+    applyBaseConversion(baseSource.value, baseSource.base, nextBase);
   };
 
   const handleSubmit = async () => {
@@ -689,8 +694,8 @@ export default function HomePage() {
                       type="number"
                       min={2}
                       max={36}
-                      value={customBase}
-                      onChange={(event) => setCustomBase(Number(event.target.value))}
+                      value={Number.isNaN(customBase) ? "" : customBase}
+                      onChange={(event) => handleCustomBaseChange(Number(event.target.value))}
                       className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                     />
                     <input
@@ -699,7 +704,11 @@ export default function HomePage() {
                       onChange={(event) =>
                         applyBaseConversion(event.target.value, customBase)
                       }
-                      placeholder={`示例：基于 ${customBase} 进制输入`}
+                      placeholder={
+                        Number.isInteger(customBase)
+                          ? `示例：基于 ${customBase} 进制输入`
+                          : "请先填写 2-36 之间的进制"
+                      }
                       className="glass h-12 w-full rounded-2xl px-4 text-sm text-[color:var(--ink)] placeholder:text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                     />
                   </div>
